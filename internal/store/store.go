@@ -68,6 +68,9 @@ type ListChangesOptions struct {
 	DeviceID string
 	Limit    int
 	Offset   int
+	// MinSeverity keeps only changes at or above this severity on the
+	// none < low < medium < high ladder. Empty or "none" means no filter.
+	MinSeverity string
 }
 
 // Store wraps the SQLite database.
@@ -313,10 +316,39 @@ func (s *Store) ListChanges(ctx context.Context, opts ListChangesOptions) ([]Cha
 	query := `
 		SELECT id, device_id, detected_at, commit_hash, prev_commit_hash, summary, max_severity, analysis_json, report_dir
 		FROM changes`
+	var conds []string
 	var args []any
 	if opts.DeviceID != "" {
-		query += ` WHERE device_id = ?`
+		conds = append(conds, `device_id = ?`)
 		args = append(args, opts.DeviceID)
+	}
+	if minRank := SeverityRank(opts.MinSeverity); minRank > 0 {
+		// SQL cannot call SeverityRank, so expand the ladder into the set of
+		// severities at or above the floor. Unknown stored severities rank as
+		// none and are therefore excluded by any real floor, consistent with
+		// SeverityRank semantics.
+		var allowed []string
+		for _, sev := range []string{"low", "medium", "high"} {
+			if SeverityRank(sev) >= minRank {
+				allowed = append(allowed, sev)
+			}
+		}
+		placeholders := ""
+		for i, sev := range allowed {
+			if i > 0 {
+				placeholders += ", "
+			}
+			placeholders += "?"
+			args = append(args, sev)
+		}
+		conds = append(conds, `max_severity IN (`+placeholders+`)`)
+	}
+	for i, cond := range conds {
+		if i == 0 {
+			query += ` WHERE ` + cond
+		} else {
+			query += ` AND ` + cond
+		}
 	}
 	query += ` ORDER BY detected_at DESC, id DESC`
 	if opts.Limit > 0 {

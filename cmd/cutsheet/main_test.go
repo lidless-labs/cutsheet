@@ -5,12 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/solomonneas/cutsheet/internal/api"
+	"github.com/solomonneas/cutsheet/internal/notify"
+	"github.com/solomonneas/cutsheet/internal/pipeline"
 	"github.com/solomonneas/cutsheet/internal/secrets"
+	"github.com/solomonneas/cutsheet/internal/store"
 )
 
 func TestParseDeviceAdd(t *testing.T) {
@@ -360,4 +368,188 @@ func TestResolveNotifySettings(t *testing.T) {
 			}
 		})
 	}
+}
+
+// readFixture loads a shared testdata fixture.
+func readFixture(t *testing.T, name string) []byte {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join("..", "..", "testdata", name))
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", name, err)
+	}
+	return content
+}
+
+// TestSnapshotNowEndToEnd drives POST /devices/{id}/snapshot through the real
+// serve wiring (store + snapshots + pipeline + file collector), the same
+// composition runServe builds: an on-demand snapshot records the initial
+// change, an unchanged config reports changed=false, and a changed config
+// produces an analyzed change whose report bundle the API then serves.
+func TestSnapshotNowEndToEnd(t *testing.T) {
+	t.Setenv(secrets.EnvKey, "")
+	dataDir := t.TempDir()
+
+	st, snaps, err := openDataDir(dataDir)
+	if err != nil {
+		t.Fatalf("openDataDir: %v", err)
+	}
+	defer st.Close()
+
+	cfgPath := filepath.Join(dataDir, "device.cfg")
+	if err := os.WriteFile(cfgPath, readFixture(t, "sample-before.cfg"), 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	device := store.Device{
+		ID: "gw1", Name: "gw1", Vendor: "auto",
+		CollectorType:   "file",
+		CollectorConfig: `{"path":"` + cfgPath + `"}`,
+	}
+	if err := st.CreateDevice(context.Background(), device); err != nil {
+		t.Fatalf("CreateDevice: %v", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe := pipeline.New(st, filepath.Join(dataDir, "reports"), logger)
+	fanout := &notify.Fanout{Logger: logger}
+	processChange := makeProcessChange(snaps, pipe, fanout, logger)
+	handler := api.New(api.Config{
+		Store:       st,
+		SnapshotNow: makeSnapshotNow(st, snaps, nil, processChange),
+		Logger:      logger,
+	})
+
+	post := func(target string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("POST", target, nil)
+		req.RemoteAddr = "127.0.0.1:50000"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+	get := func(target string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("GET", target, nil)
+		req.RemoteAddr = "127.0.0.1:50000"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+
+	// First snapshot: initial change recorded.
+	rec := post("/api/v1/devices/gw1/snapshot")
+	if rec.Code != 200 {
+		t.Fatalf("first snapshot status %d: %s", rec.Code, rec.Body.String())
+	}
+	var first struct {
+		Changed bool `json:"changed"`
+		Change  struct {
+			ID          int64  `json:"id"`
+			Summary     string `json:"summary"`
+			MaxSeverity string `json:"max_severity"`
+		} `json:"change"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &first); err != nil {
+		t.Fatalf("decode first response: %v", err)
+	}
+	if !first.Changed || first.Change.Summary != "initial snapshot" {
+		t.Fatalf("first snapshot: %s", rec.Body.String())
+	}
+
+	// Same content again: no change.
+	rec = post("/api/v1/devices/gw1/snapshot")
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"changed":false`) {
+		t.Fatalf("unchanged snapshot: %d %s", rec.Code, rec.Body.String())
+	}
+
+	// Mutate the config: analyzed change with findings and a report bundle.
+	if err := os.WriteFile(cfgPath, readFixture(t, "sample-after.cfg"), 0o600); err != nil {
+		t.Fatalf("write changed fixture: %v", err)
+	}
+	rec = post("/api/v1/devices/gw1/snapshot")
+	if rec.Code != 200 {
+		t.Fatalf("changed snapshot status %d: %s", rec.Code, rec.Body.String())
+	}
+	var changed struct {
+		Changed bool `json:"changed"`
+		Change  struct {
+			ID          int64  `json:"id"`
+			MaxSeverity string `json:"max_severity"`
+			HasReport   bool   `json:"has_report"`
+		} `json:"change"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &changed); err != nil {
+		t.Fatalf("decode changed response: %v", err)
+	}
+	if !changed.Changed || !changed.Change.HasReport || changed.Change.MaxSeverity == "none" {
+		t.Fatalf("changed snapshot: %s", rec.Body.String())
+	}
+
+	// The recorded change's report bundle is servable through the API.
+	rec = get(fmt.Sprintf("/api/v1/changes/%d/reports", changed.Change.ID))
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "report.html") {
+		t.Fatalf("report list: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = get(fmt.Sprintf("/api/v1/changes/%d/reports/report.html", changed.Change.ID))
+	if rec.Code != 200 || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html") {
+		t.Fatalf("report.html: %d %q", rec.Code, rec.Header().Get("Content-Type"))
+	}
+}
+
+func TestTokenCLI(t *testing.T) {
+	dataDir := t.TempDir()
+
+	// create prints the plaintext exactly once.
+	out := captureStdout(t, func() {
+		if err := runTokenCreate([]string{"--data-dir", dataDir, "--name", "ci"}); err != nil {
+			t.Fatalf("token create: %v", err)
+		}
+	})
+	if !strings.Contains(out, "cst_") {
+		t.Fatalf("token create output missing plaintext: %q", out)
+	}
+
+	out = captureStdout(t, func() {
+		if err := runTokenList([]string{"--data-dir", dataDir}); err != nil {
+			t.Fatalf("token list: %v", err)
+		}
+	})
+	if !strings.Contains(out, "ci") || strings.Contains(out, "cst_") {
+		t.Fatalf("token list output: %q", out)
+	}
+
+	if err := runTokenRm([]string{"--data-dir", dataDir, "--id", "1"}); err != nil {
+		t.Fatalf("token rm: %v", err)
+	}
+	st, err := openStore(dataDir)
+	if err != nil {
+		t.Fatalf("openStore: %v", err)
+	}
+	defer st.Close()
+	n, err := st.CountTokens(context.Background())
+	if err != nil {
+		t.Fatalf("CountTokens: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("tokens after rm = %d, want 0", n)
+	}
+
+	if err := runTokenRm([]string{"--data-dir", dataDir, "--id", "1"}); err == nil {
+		t.Fatal("token rm of missing id should error")
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+	fn()
+	w.Close()
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read captured stdout: %v", err)
+	}
+	return string(out)
 }

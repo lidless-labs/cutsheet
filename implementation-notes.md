@@ -410,3 +410,19 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   `DEFAULT_HEADERS` dict (User-Agent etc.) but never actually attaches it to
   requests, so the cloud API demonstrably does not gate on User-Agent; the
   collector sends Go's default UA.
+
+## 2026-06-09 - Live testbed: containerlab FRR, first real-device dogfood
+
+- Permanent testbed deployed on a Proxmox CT: containerlab 0.76 topology with two
+  FRR 10.2.1 routers (custom image: quay.io/frrouting/frr + openssh, vty group
+  membership for the ssh user) with an OSPF adjacency on 198.18.100.0/30.
+- Collector setup that works against FRR: collector ssh, custom command
+  `vtysh -c 'show running-config'`, vendor cisco-ios. FRR's Cisco-style syntax
+  parses well enough for real findings: removing a static route via vtysh
+  produced RISK-001 (medium, "Route removed") with the full report bundle one
+  poll cycle later. First end-to-end run against a live routing daemon.
+- Both lab and server persisted as systemd units; note the lab unit uses
+  `containerlab deploy --reconfigure`, so a unit restart resets router runtime
+  config to the frr.conf baseline, which cutsheet then records as drift
+  (useful: it exercises change detection on every lab restart).
+- vtysh warns `Can't open /etc/frr/vtysh.conf` on exec; cosmetic, output is fine.

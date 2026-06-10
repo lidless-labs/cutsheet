@@ -346,3 +346,20 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   `cutsheet-cli` from cmd/cutsheet-cli). The old target built only the CLI
   under the name "cutsheet", which collided with the server binary the README
   now leads with. Added `make demo` and `make docker-build`.
+
+## 2026-06-09 - Docker smoke test + dogfood correction
+
+- **Docker smoke test PASSED** on a Proxmox CT (Ubuntu 24.04, docker.io 29.1.3,
+  compose 2.40): image builds from the multi-stage Dockerfile, compose comes up
+  healthy, docker-bridge requests correctly hit the zero-token 401 (confirming
+  the README caveat), `docker compose exec cutsheet cutsheet token create
+  --data-dir /data --name x` works exactly as documented, authed API + embedded
+  UI serve, and tokens survive `compose restart` (named volume persistence).
+  One compose note: the file intentionally has both `image:` and `build:` keys;
+  use `docker compose up -d --no-build` when supplying a pre-built tag.
+- **Dogfood plan corrected:** there is no UniFi controller or EdgeOS gateway
+  available (earlier docs assumed one; the real home network is eero mesh with
+  no managed switch). Primary live testbed is now containerlab VyOS/FRR via the
+  existing SSH collector. A future "eero" collector against the unofficial eero
+  cloud API is the real-gear path; it should emit a stable-sorted JSON snapshot
+  (generic parser first, dedicated eero-json parser later).

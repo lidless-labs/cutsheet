@@ -78,14 +78,14 @@ Repo private until first release. Go for server, React/TS for UI.
 5. **Analysis pipeline:** change detection on new commit, run `Explain()`, persist findings, render reports.
 6. **REST API + React UI:** inventory, timeline, change detail. Reuse the existing HTML report rendering as the change-detail core.
 7. **Notifier:** webhook + Discord first.
-8. **Dogfood:** run against a real home network (UniFi/EdgeOS gear and additional LAN segments) plus a permanent containerlab topology (VyOS + FRR + cEOS) as a second "site" for multi-vendor coverage. Early outside adopters from homelab/networking communities expand real-world vendor coverage.
+8. **Dogfood:** a permanent containerlab topology (VyOS + FRR + cEOS) polled via the SSH collector is the primary live environment (no managed home hardware exists; the home network is eero mesh). A future eero collector against the unofficial eero cloud API (prior art: solomonneas/eero-cli) adds a real-gear story. Early outside adopters from homelab/networking communities expand real-world vendor coverage; the UniFi collector ships fixture-tested and gets its first live validation from an adopter.
 9. **Release prep:** docker-compose install path, README with 15-minute quickstart, demo GIF, fixture-based demo mode (ship with sample devices so people can try it with zero hardware).
 
 ## Verification
 
 - **Unit/golden:** existing configdiff tests + new golden fixtures per collector vendor (recorded real outputs, sanitized: no RFC 1918, use 198.18.0.0/15 or RFC 5737).
 - **Integration:** docker-compose up from scratch, register a containerlab FRR or VyOS virtual device, force a config change, assert a risk-analyzed change appears in the timeline and fires a webhook.
-- **Live:** poll a real UniFi controller and EdgeOS gateway; make a real VLAN change; verify the stakeholder brief reads correctly.
+- **Live:** poll a containerlab VyOS device via the SSH collector; make a real config change through the VyOS CLI; verify the stakeholder brief reads correctly. (No managed hardware available; an eero collector against the unofficial eero cloud API is the future real-gear path.)
 - **Adoption test (the real one):** one outside person installs from the README in under 15 minutes without help.
 
 ## Out of scope (deliberately)

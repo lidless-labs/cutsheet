@@ -32,5 +32,8 @@ make sample-report
 
 ## Environment constraints
 
-- No Cisco/Palo Alto hardware available. Live testing: home UniFi controller and
-  EdgeOS gateway only. Everything else: testdata fixtures + containerlab (VyOS/FRR).
+- NO managed network hardware available at all: no Cisco/Palo Alto, no UniFi
+  controller, no EdgeOS gateway. Home network is eero mesh only. Live testing:
+  containerlab (VyOS/FRR via the SSH collector) is the primary testbed; a future
+  eero collector (unofficial cloud API, prior art in solomonneas/eero-cli) is the
+  only real-gear option. Everything else: testdata fixtures.

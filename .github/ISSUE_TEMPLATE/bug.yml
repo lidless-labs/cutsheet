@@ -1,0 +1,57 @@
+name: Bug report
+description: Something is broken in Cutsheet itself, such as the server, a collector, the analyzer, the web UI, or the CLI.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you run or do, and what did you expect versus what you got?
+      placeholder: |
+        I ran `cutsheet-cli explain --before a.cfg --after b.cfg --vendor cisco-ios --out ./out` and got X.
+        I expected Y.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Cutsheet version
+      description: The version reported by `/healthz`, or the image tag / commit you built from.
+      placeholder: v0.1.0 or commit abc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: How are you running it
+      options:
+        - Docker / compose
+        - Go binary (cutsheet serve)
+        - Offline CLI (cutsheet-cli explain)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: vendor
+    attributes:
+      label: Vendor / parser mode
+      description: If this is about a specific device or parser, which vendor mode (e.g. cisco-ios, edgeos, fortinet, unifi-json, auto)?
+      placeholder: cisco-ios
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output, logs, or a redacted fixture pair
+      description: Paste stdout + stderr. For analyzer or parser bugs, a minimal before/after config pair that reproduces the issue is the most useful thing you can attach.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: scrub
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I have scrubbed real device IPs, hostnames, and credentials from anything I pasted (use 192.0.2.x / 198.18.0.x and generic names).
+          required: true
+</content>

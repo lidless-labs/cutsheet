@@ -34,3 +34,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Version injection: `make build`, `make docker-build`, and the compose
   build report `git describe` (or `$VERSION`) via `/healthz`.
 - cutsheet.dev landing page.
+
+### Documentation
+
+- README rewritten to the adoption standard: differentiator on the first
+  screen, a keyword-rich "What it does" section, a real risk-finding output
+  block, "Why not Oxidized, RANCID, or NetBox?" and "What Cutsheet is not"
+  sections, and a prominent cutsheet.dev link.
+- Added maintainer-health files: `SECURITY.md`, `CONTRIBUTING.md`,
+  `CODE_OF_CONDUCT.md`, GitHub issue templates (bug, feature, and a blank-issue
+  config with contact links), and a pull request template.

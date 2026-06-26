@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Website and docs
+    url: https://cutsheet.dev
+    about: Overview, screenshots, and the latest on what Cutsheet does. Start here if you are evaluating it.
+  - name: Security report
+    url: https://github.com/solomonneas/cutsheet/security/policy
+    about: Do not file security issues publicly. See SECURITY.md.
+</content>

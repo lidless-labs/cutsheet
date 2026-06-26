@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest a new vendor, collector, risk finding, or capability for Cutsheet.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: Describe the change-management or NetOps pain you are hitting today. What can you not see or not trust right now?
+      placeholder: |
+        When my FortiGate policy is reordered, the diff is noise and I cannot tell whether anything actually loosened.
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of request is this
+      options:
+        - New vendor / parser mode
+        - New read-only collector
+        - New or improved risk finding
+        - Web UI / reporting
+        - API / integration
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should Cutsheet do? If it is a parser or finding, a small before/after config snippet (scrubbed) and the finding you would expect helps a lot.
+    validations:
+      required: false
+  - type: checkboxes
+    id: boundaries
+    attributes:
+      label: Boundaries
+      options:
+        - label: I understand collectors are read-only and Cutsheet will never push config to a device.
+          required: true
+        - label: Any config snippet I include uses safe addresses (192.0.2.x / 198.18.0.x) and generic device names.
+          required: true
+</content>

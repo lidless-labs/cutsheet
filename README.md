@@ -13,9 +13,9 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/actions/workflow/status/lidless-labs/cutsheet/ci.yml?branch=main&style=for-the-badge&label=ci" alt="CI status">
-  <img src="https://img.shields.io/badge/go-1.25%2B-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.25+">
-  <img src="https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge" alt="Apache-2.0 license">
+  <img src="https://shieldcn.dev/github/ci/lidless-labs/cutsheet.svg?branch=main&workflow=ci.yml" alt="CI status">
+  <img src="https://shieldcn.dev/badge/go-1.25%2B-00ADD8.svg?logo=go&logoColor=white" alt="Go 1.25+">
+  <img src="https://shieldcn.dev/badge/license-Apache--2.0-blue.svg" alt="Apache-2.0 license">
 </p>
 
 Cutsheet is config-backup tooling with a brain. Tools like Oxidized and RANCID archive your switch, router, and firewall configs and hand you a raw text diff; Cutsheet keeps the same git-backed history and then runs every change through a deterministic risk analyzer, so instead of a wall of colored lines you get findings like "trunk now carries all VLANs" or "firewall rule broadened to any/any". Everything runs in a single binary on your own hardware: no agent installs, no cloud, and it never pushes config to a device.

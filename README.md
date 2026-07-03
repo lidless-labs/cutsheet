@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://shieldcn.dev/github/ci/solomonneas/cutsheet.svg?workflow=ci.yml&branch=main&label=ci&size=xs" alt="CI status">
+  <img src="https://shieldcn.dev/github/ci/lidless-labs/cutsheet.svg?workflow=ci.yml&branch=main&label=ci&size=xs" alt="CI status">
   <img src="https://shieldcn.dev/badge/go-1.25%2B-00ADD8.svg?size=xs&logo=go&logoColor=white" alt="Go 1.25+">
   <img src="https://shieldcn.dev/badge/license-Apache--2.0-blue.svg?size=xs" alt="Apache-2.0 license">
 </p>
@@ -37,7 +37,7 @@ Cutsheet is network change management and config diff intelligence for NetOps an
 ## Install
 
 ```bash
-git clone https://github.com/solomonneas/cutsheet.git
+git clone https://github.com/lidless-labs/cutsheet.git
 cd cutsheet
 docker compose up -d --build
 ```

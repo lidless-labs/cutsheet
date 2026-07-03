@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/cutsheet-banner.jpg" alt="cutsheet banner" width="900">
+  <img src="docs/assets/cutsheet-social-preview.jpg" alt="Cutsheet social preview" width="900">
 </p>
 
 <h1 align="center">Cutsheet</h1>
@@ -9,24 +9,32 @@
 </p>
 
 <p align="center">
-  <a href="https://cutsheet.dev"><strong>cutsheet.dev</strong></a>
+  <a href="https://cutsheet.dev"><strong>Website</strong></a>
+  &middot;
+  <a href="docs/parsers.md">Docs</a>
+  &middot;
+  <a href="#try-it-in-60-seconds">Quickstart</a>
 </p>
 
 <p align="center">
-  <img src="https://shieldcn.dev/github/ci/lidless-labs/cutsheet.svg?branch=main&workflow=ci.yml" alt="CI status">
-  <img src="https://shieldcn.dev/badge/go-1.25%2B-00ADD8.svg?logo=go&logoColor=white" alt="Go 1.25+">
-  <img src="https://shieldcn.dev/badge/license-Apache--2.0-blue.svg" alt="Apache-2.0 license">
+  <img src="https://shieldcn.dev/github/ci/solomonneas/cutsheet.svg?workflow=ci.yml&branch=main&label=ci&size=xs" alt="CI status">
+  <img src="https://shieldcn.dev/badge/go-1.25%2B-00ADD8.svg?size=xs&logo=go&logoColor=white" alt="Go 1.25+">
+  <img src="https://shieldcn.dev/badge/license-Apache--2.0-blue.svg?size=xs" alt="Apache-2.0 license">
 </p>
 
 Cutsheet is config-backup tooling with a brain. Tools like Oxidized and RANCID archive your switch, router, and firewall configs and hand you a raw text diff; Cutsheet keeps the same git-backed history and then runs every change through a deterministic risk analyzer, so instead of a wall of colored lines you get findings like "trunk now carries all VLANs" or "firewall rule broadened to any/any". Everything runs in a single binary on your own hardware: no agent installs, no cloud, and it never pushes config to a device.
 
-<!-- TODO: screenshot of the web UI change timeline -->
+<p align="center">
+  <img src="docs/assets/cutsheet-report.png" alt="Cutsheet report showing a network change summary, risk findings, rollback plan, validation plan, and operator checklist" width="900">
+</p>
+
+<p align="center"><em>Cutsheet report view shows a risk-analyzed device config change with rollback, validation, and operator checklist sections.</em></p>
 
 ## What it does
 
 Cutsheet is network change management and config diff intelligence for NetOps and on-call engineers. It polls your switches, gateways, firewalls, and UniFi controllers on a schedule, keeps every config snapshot in a git-backed history, and runs each change through an offline risk analyzer that understands VLANs, trunks, spanning tree, ACLs, and firewall rules. Each detected change becomes a timeline entry with risk findings, a rollback plan, a validation plan, and an operator checklist you can actually hand to whoever is on call. It supports Cisco IOS/IOS XE, Ubiquiti EdgeSwitch and EdgeOS/VyOS, Palo Alto PAN-OS, Juniper Junos, Fortinet FortiOS, UniFi controllers, eero networks, and a generic fallback for everything else. Collectors are read-only and credentials are encrypted at rest, so the worst Cutsheet can do to a device is read its config.
 
-## Quick start (Docker)
+## Install
 
 ```bash
 git clone https://github.com/solomonneas/cutsheet.git
@@ -63,7 +71,7 @@ go build -o cutsheet ./cmd/cutsheet
 The server listens on `127.0.0.1:8633` by default and works tokenless from
 the same machine until you create a token with `cutsheet token create`.
 
-## Try it with zero hardware
+## Try it in 60 seconds
 
 Demo mode seeds a data directory with four sample devices (Cisco Catalyst
 switch, EdgeOS gateway, UniFi controller, FortiGate firewall) and replays a

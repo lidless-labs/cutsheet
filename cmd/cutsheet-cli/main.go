@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -46,6 +47,20 @@ func run(args []string) error {
 		}
 		fmt.Printf("Wrote config diff report to %s\n", result.OutDir)
 		return nil
+	case "preflight":
+		fs := flag.NewFlagSet("preflight", flag.ContinueOnError)
+		fs.SetOutput(os.Stderr)
+		current := fs.String("current", "", "path to the current (live) config")
+		candidate := fs.String("candidate", "", "path to the candidate config to pre-flight")
+		vendor := fs.String("vendor", "auto", "vendor parser mode: auto or generic")
+		asJSON := fs.Bool("json", false, "emit the full analysis as JSON")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *current == "" || *candidate == "" {
+			return fmt.Errorf("preflight requires --current and --candidate")
+		}
+		return preflight(*current, *candidate, *vendor, *asJSON)
 	case "-h", "--help", "help":
 		printUsage()
 		return nil
@@ -56,10 +71,48 @@ func run(args []string) error {
 
 func usageError() error {
 	printUsage()
-	return fmt.Errorf("expected command: explain")
+	return fmt.Errorf("expected command: explain or preflight")
+}
+
+// preflight analyzes a candidate config against the current one and prints the
+// blast radius (risk findings + rollback) WITHOUT writing a report or touching
+// any store or git history. It is the "cut sheet" made safe: see the impact of
+// a change before you apply it. ActiveGraph-inspired fork of a candidate branch.
+func preflight(currentPath, candidatePath, vendor string, asJSON bool) error {
+	currentBytes, err := os.ReadFile(currentPath)
+	if err != nil {
+		return fmt.Errorf("read current config: %w", err)
+	}
+	candidateBytes, err := os.ReadFile(candidatePath)
+	if err != nil {
+		return fmt.Errorf("read candidate config: %w", err)
+	}
+	analysis, err := configdiff.AnalyzeContent(string(currentBytes), string(candidateBytes), vendor)
+	if err != nil {
+		return err
+	}
+
+	if asJSON {
+		out, err := json.MarshalIndent(analysis, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal analysis: %w", err)
+		}
+		fmt.Println(string(out))
+		return nil
+	}
+
+	fmt.Printf("Pre-flight: %s (%s)\n", analysis.DetectedPlatform.Parser, analysis.DetectedPlatform.DetectedVendor)
+	fmt.Printf("Risk findings: %d\n", len(analysis.RiskFindings))
+	for _, finding := range analysis.RiskFindings {
+		fmt.Printf("  [%s] %s (%s)\n", finding.Severity, finding.Title, finding.Category)
+	}
+	fmt.Printf("Rollback confidence: %s\n", analysis.Rollback.Confidence)
+	fmt.Println("No report written; nothing persisted.")
+	return nil
 }
 
 func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, "  cutsheet explain --before ./before.cfg --after ./after.cfg --vendor auto --out ./reports/change-001")
+	fmt.Fprintln(os.Stderr, "  cutsheet preflight --current ./running.cfg --candidate ./proposed.cfg --vendor auto [--json]")
 }

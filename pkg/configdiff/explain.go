@@ -7,6 +7,25 @@ import (
 	"path/filepath"
 )
 
+// AnalyzeContent parses and analyzes two configs entirely in memory, with no
+// file or report I/O. It is the pure core shared by Explain (which persists a
+// report) and pre-flight (which evaluates a candidate config before it is
+// applied, without persisting anything). Splitting it out is what lets a
+// candidate config be "forked" and inspected the way ActiveGraph evaluates a
+// branch before committing it. See docs/design/activegraph-inspiration.md.
+func AnalyzeContent(beforeContent, afterContent, vendor string) (Analysis, error) {
+	if vendor == "" {
+		vendor = "auto"
+	}
+	parser, err := selectParser(vendor, beforeContent+"\n"+afterContent)
+	if err != nil {
+		return Analysis{}, err
+	}
+	before := parser.Parse(beforeContent, vendor)
+	after := parser.Parse(afterContent, vendor)
+	return analyze(before, after, vendor), nil
+}
+
 func Explain(opts Options) (Result, error) {
 	if opts.Vendor == "" {
 		opts.Vendor = "auto"
@@ -21,13 +40,10 @@ func Explain(opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("read after config: %w", err)
 	}
 
-	parser, err := selectParser(opts.Vendor, string(beforeBytes)+"\n"+string(afterBytes))
+	analysis, err := AnalyzeContent(string(beforeBytes), string(afterBytes), opts.Vendor)
 	if err != nil {
 		return Result{}, err
 	}
-	before := parser.Parse(string(beforeBytes), opts.Vendor)
-	after := parser.Parse(string(afterBytes), opts.Vendor)
-	analysis := analyze(before, after, opts.Vendor)
 
 	if err := os.MkdirAll(opts.OutDir, 0o755); err != nil {
 		return Result{}, fmt.Errorf("create output directory: %w", err)

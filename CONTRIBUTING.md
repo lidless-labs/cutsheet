@@ -68,5 +68,5 @@ Do not file security issues publicly. See [SECURITY.md](SECURITY.md).
 
 ## License
 
-By contributing you agree that your contribution is licensed under the Apache License 2.0, same as the rest of the repo.
+By contributing you agree that your contribution is licensed under the MIT License, same as the rest of the repo.
 </content>

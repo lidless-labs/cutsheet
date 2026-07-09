@@ -19,6 +19,7 @@ import (
 const (
 	defaultMapTTL             = 30 * time.Second
 	defaultDebounce           = 10 * time.Second
+	defaultCooldown           = 30 * time.Second
 	defaultUnknownLogInterval = 30 * time.Second
 )
 
@@ -41,6 +42,8 @@ type Options struct {
 	ListenAddr string
 	// Debounce coalesces repeated syslog packets for one device.
 	Debounce time.Duration
+	// Cooldown drops packets for one device after a snapshot finishes.
+	Cooldown time.Duration
 	// MapTTL controls how long source IP to device matches are cached.
 	MapTTL time.Duration
 	// Resolver resolves DNS names in collector host/syslog_source fields.
@@ -72,6 +75,8 @@ type Listener struct {
 	mapExpires        time.Time
 	debouncers        map[string]*debounceTimer
 	inFlight          map[string]bool
+	cooldowns         map[string]time.Time
+	cooldownLogs      map[string]*dropLogState
 	nextUnknownLog    time.Time
 	unknownSuppressed int
 }
@@ -81,6 +86,11 @@ type debounceTimer struct {
 	generation int
 }
 
+type dropLogState struct {
+	nextLog    time.Time
+	suppressed int
+}
+
 // New builds a Listener. Call Start to bind the UDP socket.
 func New(lister DeviceLister, snapshot SnapshotFunc, opts Options) *Listener {
 	if opts.ListenAddr == "" {
@@ -88,6 +98,9 @@ func New(lister DeviceLister, snapshot SnapshotFunc, opts Options) *Listener {
 	}
 	if opts.Debounce <= 0 {
 		opts.Debounce = defaultDebounce
+	}
+	if opts.Cooldown <= 0 {
+		opts.Cooldown = defaultCooldown
 	}
 	if opts.MapTTL <= 0 {
 		opts.MapTTL = defaultMapTTL
@@ -104,14 +117,16 @@ func New(lister DeviceLister, snapshot SnapshotFunc, opts Options) *Listener {
 		resolver = net.DefaultResolver
 	}
 	return &Listener{
-		lister:     lister,
-		snapshot:   snapshot,
-		opts:       opts,
-		logger:     logger,
-		resolver:   resolver,
-		ipMap:      make(map[string][]string),
-		debouncers: make(map[string]*debounceTimer),
-		inFlight:   make(map[string]bool),
+		lister:       lister,
+		snapshot:     snapshot,
+		opts:         opts,
+		logger:       logger,
+		resolver:     resolver,
+		ipMap:        make(map[string][]string),
+		debouncers:   make(map[string]*debounceTimer),
+		inFlight:     make(map[string]bool),
+		cooldowns:    make(map[string]time.Time),
+		cooldownLogs: make(map[string]*dropLogState),
 	}
 }
 
@@ -281,7 +296,25 @@ func (l *Listener) resolveHost(ctx context.Context, host string) []string {
 }
 
 func (l *Listener) schedule(deviceID string) {
+	now := time.Now()
 	l.mu.Lock()
+	if until, cooling := l.cooldowns[deviceID]; cooling {
+		if now.Before(until) {
+			// Drop instead of deferring: cooldown is a post-snapshot dampener,
+			// not another debounce queue.
+			shouldLog, suppressed := l.recordDropLogLocked(l.cooldownLogs, deviceID, now)
+			l.mu.Unlock()
+			if shouldLog {
+				l.logger.Debug("syslog packet dropped during device cooldown",
+					"device", deviceID,
+					"cooldown_until", until,
+					"suppressed", suppressed)
+			}
+			return
+		}
+		delete(l.cooldowns, deviceID)
+		delete(l.cooldownLogs, deviceID)
+	}
 	// Fixed debounce window: the first packet arms the timer and later
 	// packets coalesce into it without resetting it. A sliding window would
 	// never fire on a device that logs more often than the debounce
@@ -324,7 +357,32 @@ func (l *Listener) fire(deviceID string, generation int) {
 
 	l.mu.Lock()
 	delete(l.inFlight, deviceID)
+	// Drop any timer armed by chatter while the snapshot was running. It
+	// should not survive into the post-snapshot cooldown as deferred work.
+	if state := l.debouncers[deviceID]; state != nil {
+		if state.timer.Stop() {
+			l.pendingWG.Done()
+		}
+		delete(l.debouncers, deviceID)
+	}
+	l.cooldowns[deviceID] = time.Now().Add(l.opts.Cooldown)
 	l.mu.Unlock()
+}
+
+func (l *Listener) recordDropLogLocked(states map[string]*dropLogState, key string, now time.Time) (bool, int) {
+	state := states[key]
+	if state == nil {
+		state = &dropLogState{}
+		states[key] = state
+	}
+	if now.Before(state.nextLog) {
+		state.suppressed++
+		return false, 0
+	}
+	suppressed := state.suppressed
+	state.suppressed = 0
+	state.nextLog = now.Add(l.opts.UnknownLogInterval)
+	return true, suppressed
 }
 
 func (l *Listener) stopDebouncers() {

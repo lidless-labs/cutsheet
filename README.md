@@ -205,12 +205,14 @@ run an immediate snapshot when a known device emits a message:
 ```bash
 cutsheet serve --data-dir ./data \
   --syslog-listen 0.0.0.0:5514 \
-  --syslog-debounce 10s
+  --syslog-debounce 10s \
+  --syslog-cooldown 30s
 ```
 
 The same settings are read from `CUTSHEET_SYSLOG_LISTEN` and
-`CUTSHEET_SYSLOG_DEBOUNCE` (flags win). `--syslog-debounce` accepts Go
-duration strings such as `500ms`, `10s`, or `2m`.
+`CUTSHEET_SYSLOG_DEBOUNCE` / `CUTSHEET_SYSLOG_COOLDOWN` (flags win).
+`--syslog-debounce` and `--syslog-cooldown` accept Go duration strings such
+as `500ms`, `10s`, or `2m`.
 
 The listener matches the UDP sender IP against each enabled device. SSH
 devices use `collector_config.host`; any collector can override or add a
@@ -219,6 +221,8 @@ fields are resolved by the server and cached with the source map for 30
 seconds. Unknown sources are dropped with rate-limited debug logs. Repeated
 messages for one device are coalesced by the debounce window, and a second
 snapshot is skipped while the previous one for that device is still running.
+After a snapshot finishes, matching packets for that device are dropped for
+the cooldown window instead of being deferred.
 
 Use a high UDP port such as 5514 unless your service manager grants permission
 to bind 514. Point device syslog at the Cutsheet host and port; the message

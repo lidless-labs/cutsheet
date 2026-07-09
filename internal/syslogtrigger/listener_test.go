@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -185,6 +186,162 @@ func TestListenerSkipsConcurrentTriggerForSameDevice(t *testing.T) {
 	}
 }
 
+func TestListenerDropsPacketsDuringCooldown(t *testing.T) {
+	lister := &fakeDeviceLister{devices: []store.Device{{
+		ID:              "edge-gw1",
+		Enabled:         true,
+		CollectorType:   "ssh",
+		CollectorConfig: `{"host":"127.0.0.1"}`,
+	}}}
+	rec := newSnapshotRecorder()
+	ln, cancel := startTestListenerWithOptions(t, lister, rec, Options{
+		ListenAddr: "127.0.0.1:0",
+		Debounce:   10 * time.Millisecond,
+		Cooldown:   80 * time.Millisecond,
+		MapTTL:     time.Minute,
+	})
+	defer cancel()
+
+	sendSyslog(t, ln.Addr())
+	if got := waitStarted(t, rec); got != "edge-gw1" {
+		t.Fatalf("first snapshot device = %q, want edge-gw1", got)
+	}
+	waitCompleted(t, rec, 1)
+
+	sendSyslog(t, ln.Addr())
+	assertNoSnapshot(t, rec, 120*time.Millisecond)
+	if got := rec.count(); got != 1 {
+		t.Fatalf("snapshots after cooldown drop = %d, want 1", got)
+	}
+
+	sendSyslog(t, ln.Addr())
+	if got := waitStarted(t, rec); got != "edge-gw1" {
+		t.Fatalf("snapshot after cooldown = %q, want edge-gw1", got)
+	}
+	waitCompleted(t, rec, 2)
+}
+
+func TestListenerCooldownIsPerDevice(t *testing.T) {
+	lister := &fakeDeviceLister{devices: []store.Device{
+		{
+			ID:              "edge-gw1",
+			Enabled:         true,
+			CollectorType:   "file",
+			CollectorConfig: `{"path":"/tmp/edge-gw1.cfg","syslog_source":"127.0.0.1"}`,
+		},
+		{
+			ID:              "edge-gw2",
+			Enabled:         true,
+			CollectorType:   "file",
+			CollectorConfig: `{"path":"/tmp/edge-gw2.cfg","syslog_source":"127.0.0.2"}`,
+		},
+	}}
+	rec := newSnapshotRecorder()
+	ln, cancel := startTestListenerWithOptions(t, lister, rec, Options{
+		ListenAddr: "127.0.0.1:0",
+		Debounce:   10 * time.Millisecond,
+		Cooldown:   120 * time.Millisecond,
+		MapTTL:     time.Minute,
+	})
+	defer cancel()
+
+	sendSyslog(t, ln.Addr())
+	if got := waitStarted(t, rec); got != "edge-gw1" {
+		t.Fatalf("first snapshot device = %q, want edge-gw1", got)
+	}
+	waitCompleted(t, rec, 1)
+
+	sendSyslog(t, ln.Addr())
+	sendSyslogFrom(t, ln.Addr(), "127.0.0.2:0")
+	if got := waitStarted(t, rec); got != "edge-gw2" {
+		t.Fatalf("second snapshot device = %q, want edge-gw2", got)
+	}
+	waitCompleted(t, rec, 2)
+	if ids := rec.idsSnapshot(); len(ids) != 2 || ids[0] != "edge-gw1" || ids[1] != "edge-gw2" {
+		t.Fatalf("snapshots = %#v, want edge-gw1 then edge-gw2", ids)
+	}
+}
+
+func TestListenerCooldownAbsorbsQueuedChatterAndAllowsOneLaterSnapshot(t *testing.T) {
+	lister := &fakeDeviceLister{devices: []store.Device{{
+		ID:              "edge-gw1",
+		Enabled:         true,
+		CollectorType:   "ssh",
+		CollectorConfig: `{"host":"127.0.0.1"}`,
+	}}}
+	rec := newSnapshotRecorder()
+	rec.block = make(chan struct{})
+	ln, cancel := startTestListenerWithOptions(t, lister, rec, Options{
+		ListenAddr: "127.0.0.1:0",
+		Debounce:   25 * time.Millisecond,
+		Cooldown:   120 * time.Millisecond,
+		MapTTL:     time.Minute,
+	})
+	defer cancel()
+
+	sendSyslog(t, ln.Addr())
+	if got := waitStarted(t, rec); got != "edge-gw1" {
+		t.Fatalf("first snapshot device = %q, want edge-gw1", got)
+	}
+	sendSyslog(t, ln.Addr())
+	close(rec.block)
+	waitCompleted(t, rec, 1)
+
+	assertNoSnapshot(t, rec, 80*time.Millisecond)
+	if got := rec.count(); got != 1 {
+		t.Fatalf("snapshots during cooldown = %d, want 1", got)
+	}
+
+	time.Sleep(60 * time.Millisecond)
+	sendSyslog(t, ln.Addr())
+	if got := waitStarted(t, rec); got != "edge-gw1" {
+		t.Fatalf("snapshot after cooldown = %q, want edge-gw1", got)
+	}
+	waitCompleted(t, rec, 2)
+	assertNoSnapshot(t, rec, 70*time.Millisecond)
+	if got := rec.count(); got != 2 {
+		t.Fatalf("snapshots after cooldown expiry = %d, want 2", got)
+	}
+}
+
+func TestListenerCooldownLogsAreRateLimitedAndCounted(t *testing.T) {
+	lister := &fakeDeviceLister{devices: []store.Device{{
+		ID:              "edge-gw1",
+		Enabled:         true,
+		CollectorType:   "ssh",
+		CollectorConfig: `{"host":"127.0.0.1"}`,
+	}}}
+	rec := newSnapshotRecorder()
+	logs := &recordingHandler{}
+	ln, cancel := startTestListenerWithOptions(t, lister, rec, Options{
+		ListenAddr:         "127.0.0.1:0",
+		Debounce:           5 * time.Millisecond,
+		Cooldown:           150 * time.Millisecond,
+		MapTTL:             time.Minute,
+		UnknownLogInterval: 40 * time.Millisecond,
+		Logger:             slog.New(logs),
+	})
+	defer cancel()
+
+	sendSyslog(t, ln.Addr())
+	waitStarted(t, rec)
+	waitCompleted(t, rec, 1)
+
+	sendSyslog(t, ln.Addr())
+	sendSyslog(t, ln.Addr())
+	sendSyslog(t, ln.Addr())
+	time.Sleep(50 * time.Millisecond)
+	sendSyslog(t, ln.Addr())
+
+	entries := logs.waitMessages(t, "syslog packet dropped during device cooldown", 2)
+	if entries[0].suppressed != 0 {
+		t.Fatalf("first cooldown log suppressed = %d, want 0", entries[0].suppressed)
+	}
+	if entries[1].suppressed != 2 {
+		t.Fatalf("second cooldown log suppressed = %d, want 2", entries[1].suppressed)
+	}
+}
+
 func TestListenerRefreshesIPMapAfterTTL(t *testing.T) {
 	lister := &fakeDeviceLister{devices: []store.Device{{
 		ID:              "edge-gw1",
@@ -243,13 +400,21 @@ func TestListenerShutsDownWithContext(t *testing.T) {
 
 func startTestListener(t *testing.T, lister *fakeDeviceLister, rec *snapshotRecorder, debounce, ttl time.Duration) (*Listener, context.CancelFunc) {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	ln := New(lister, rec.snapshot, Options{
+	return startTestListenerWithOptions(t, lister, rec, Options{
 		ListenAddr: "127.0.0.1:0",
 		Debounce:   debounce,
 		MapTTL:     ttl,
 		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
+}
+
+func startTestListenerWithOptions(t *testing.T, lister *fakeDeviceLister, rec *snapshotRecorder, opts Options) (*Listener, context.CancelFunc) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	if opts.Logger == nil {
+		opts.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	ln := New(lister, rec.snapshot, opts)
 	if err := ln.Start(ctx); err != nil {
 		cancel()
 		t.Fatalf("Start: %v", err)
@@ -265,7 +430,20 @@ func startTestListener(t *testing.T, lister *fakeDeviceLister, rec *snapshotReco
 
 func sendSyslog(t *testing.T, addr net.Addr) {
 	t.Helper()
-	conn, err := net.Dial("udp", addr.String())
+	sendSyslogFrom(t, addr, "")
+}
+
+func sendSyslogFrom(t *testing.T, addr net.Addr, localAddr string) {
+	t.Helper()
+	var dialer net.Dialer
+	if localAddr != "" {
+		udpAddr, err := net.ResolveUDPAddr("udp", localAddr)
+		if err != nil {
+			t.Fatalf("ResolveUDPAddr %q: %v", localAddr, err)
+		}
+		dialer.LocalAddr = udpAddr
+	}
+	conn, err := dialer.Dial("udp", addr.String())
 	if err != nil {
 		t.Fatalf("Dial udp: %v", err)
 	}
@@ -292,6 +470,76 @@ func assertNoSnapshot(t *testing.T, rec *snapshotRecorder, d time.Duration) {
 	case id := <-rec.started:
 		t.Fatalf("unexpected snapshot callback for %s", id)
 	case <-time.After(d):
+	}
+}
+
+func waitCompleted(t *testing.T, rec *snapshotRecorder, want int) {
+	t.Helper()
+	deadline := time.After(250 * time.Millisecond)
+	for {
+		if rec.count() >= want {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("completed snapshots = %d, want at least %d", rec.count(), want)
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+}
+
+type logEntry struct {
+	message    string
+	suppressed int
+}
+
+type recordingHandler struct {
+	mu      sync.Mutex
+	entries []logEntry
+}
+
+func (h *recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *recordingHandler) Handle(ctx context.Context, r slog.Record) error {
+	entry := logEntry{message: r.Message}
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Key == "suppressed" {
+			entry.suppressed = int(a.Value.Int64())
+		}
+		return true
+	})
+	h.mu.Lock()
+	h.entries = append(h.entries, entry)
+	h.mu.Unlock()
+	return nil
+}
+
+func (h *recordingHandler) WithAttrs(attrs []slog.Attr) slog.Handler { return h }
+
+func (h *recordingHandler) WithGroup(name string) slog.Handler { return h }
+
+func (h *recordingHandler) waitMessages(t *testing.T, message string, want int) []logEntry {
+	t.Helper()
+	deadline := time.After(250 * time.Millisecond)
+	for {
+		h.mu.Lock()
+		var matches []logEntry
+		for _, entry := range h.entries {
+			if strings.Contains(entry.message, message) {
+				matches = append(matches, entry)
+			}
+		}
+		h.mu.Unlock()
+		if len(matches) >= want {
+			return matches
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("log entries containing %q = %d, want %d", message, len(matches), want)
+		default:
+			time.Sleep(time.Millisecond)
+		}
 	}
 }
 

@@ -473,8 +473,13 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   ones. A second debounced fire is skipped
   while a snapshot for that device is still in flight. Unknown sources are
   dropped with rate-limited debug logs so noisy networks do not spam logs.
+  After a snapshot callback returns, the listener starts a per-device
+  cooldown (default 30 seconds) and drops matching packets during that window
+  instead of deferring them into another debounce timer. Cooldown drops use
+  rate-limited debug logs with suppressed counts.
 - `cutsheet serve` now accepts `--syslog-listen` / `CUTSHEET_SYSLOG_LISTEN`
   and `--syslog-debounce` / `CUTSHEET_SYSLOG_DEBOUNCE`; flags win over env.
+  It also accepts `--syslog-cooldown` / `CUTSHEET_SYSLOG_COOLDOWN`.
   Empty listen address keeps the feature disabled.
 
 ## 2026-07-09 - eero configdiff parser

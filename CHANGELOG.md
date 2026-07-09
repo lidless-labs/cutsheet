@@ -15,6 +15,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Parser paths for Cisco IOS/IOS XE, Ubiquiti EdgeSwitch, EdgeOS/VyOS,
   Palo Alto PAN-OS, Juniper Junos, Fortinet FortiOS, UniFi controller JSON
   exports, eero collector JSON snapshots, and a generic fallback.
+- Eero-specific risk findings for removed mesh nodes and removed DHCP
+  reservations that still have a retained port forward targeting the former
+  reserved IP.
 - `cutsheet-cli explain`, the offline diff CLI for one-off change review.
 - Server platform: device registry, git-backed snapshot store, polling
   scheduler, and the analysis pipeline from snapshot changes to recorded

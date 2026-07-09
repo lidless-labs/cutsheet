@@ -86,6 +86,12 @@ func TestGoldenSummaries(t *testing.T) {
 			goldenPath: filepath.Join("..", "..", "testdata", "golden", "eero-reservation-summary.json"),
 		},
 		{
+			name:       "eero-reservation-forward-retained",
+			beforePath: filepath.Join("..", "..", "testdata", "eero-reservation-forward-before.json"),
+			afterPath:  filepath.Join("..", "..", "testdata", "eero-reservation-forward-after.json"),
+			goldenPath: filepath.Join("..", "..", "testdata", "golden", "eero-reservation-forward-summary.json"),
+		},
+		{
 			name:       "eero-node-removed",
 			beforePath: filepath.Join("..", "..", "testdata", "eero-node-before.json"),
 			afterPath:  filepath.Join("..", "..", "testdata", "eero-node-after.json"),

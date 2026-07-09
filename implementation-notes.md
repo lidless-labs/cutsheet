@@ -498,3 +498,19 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
 - Parser evidence redacts fields ending in `.password` with a stable SHA-256
   fingerprint prefix, so password changes are visible in diffs without raw
   WiFi secrets appearing in reports.
+
+## 2026-07-09 - eero risk rules
+
+- Added two eero-only analyzer rules without changing `Explain()`, exported
+  types, or the diff-analysis schema. Removed eero mesh inventory blocks now
+  emit a medium availability finding because client coverage and backhaul
+  redundancy can change even when no CLI-style interface shutdown line exists.
+- Removed eero reservations are correlated against the normalized after-state
+  NAT blocks. If a retained eero port forward still targets the removed
+  reservation IP, the analyzer emits a high NAT finding. This uses the
+  `after.Blocks` already available inside `analyze`, so unchanged forwards can
+  be considered without widening the public API.
+- The regression fixture is `testdata/eero-reservation-forward-*.json`, using
+  only 198.18.0.0/15 addresses. The existing eero node golden was updated for
+  the new availability title, and the reservation-forward golden pins the high
+  retained-forward title.

@@ -192,7 +192,37 @@ Notes:
 - `--interval` is the poll interval in seconds (`0` = manual snapshots
   only). You can also trigger a snapshot any time from the UI or with
   `POST /api/v1/devices/{id}/snapshot`.
+- Syslog-triggered snapshots match SSH devices by collector `host`. For
+  collectors whose syslog sender is different from the read endpoint, add
+  `"syslog_source":"198.18.0.10"` to the collector config.
 - Devices can equally be managed through the web UI or the REST API.
+
+## Syslog-triggered snapshots
+
+Polling stays the baseline, but Cutsheet can also listen for UDP syslog and
+run an immediate snapshot when a known device emits a message:
+
+```bash
+cutsheet serve --data-dir ./data \
+  --syslog-listen 0.0.0.0:5514 \
+  --syslog-debounce 10s
+```
+
+The same settings are read from `CUTSHEET_SYSLOG_LISTEN` and
+`CUTSHEET_SYSLOG_DEBOUNCE` (flags win). `--syslog-debounce` accepts Go
+duration strings such as `500ms`, `10s`, or `2m`.
+
+The listener matches the UDP sender IP against each enabled device. SSH
+devices use `collector_config.host`; any collector can override or add a
+source with top-level `collector_config.syslog_source`. DNS names in those
+fields are resolved by the server and cached with the source map for 30
+seconds. Unknown sources are dropped with rate-limited debug logs. Repeated
+messages for one device are coalesced by the debounce window, and a second
+snapshot is skipped while the previous one for that device is still running.
+
+Use a high UDP port such as 5514 unless your service manager grants permission
+to bind 514. Point device syslog at the Cutsheet host and port; the message
+body is not parsed.
 
 ## Notifications
 
@@ -214,10 +244,12 @@ is `low`, meaning any change with at least one finding.
 ## How it works
 
 ```
-scheduler -> collector (SSH / UniFi API / eero cloud API / file) -> git snapshot store
-                                                        |
-                                            change detected on commit
-                                                        v
+scheduler / syslog trigger -> collector (SSH / UniFi API / eero cloud API / file)
+                                            |
+                                    git snapshot store
+                                            |
+                                change detected on commit
+                                            v
    web UI + REST API <- SQLite (devices, changes, findings) <- risk analysis
             |                                                  (pkg/configdiff)
             +-> notifier (webhook / Discord)

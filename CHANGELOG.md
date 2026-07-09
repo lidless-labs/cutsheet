@@ -14,7 +14,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   report, behind a stable JSON schema (`diff-analysis-v1`).
 - Parser paths for Cisco IOS/IOS XE, Ubiquiti EdgeSwitch, EdgeOS/VyOS,
   Palo Alto PAN-OS, Juniper Junos, Fortinet FortiOS, UniFi controller JSON
-  exports, and a generic fallback.
+  exports, eero collector JSON snapshots, and a generic fallback.
 - `cutsheet-cli explain`, the offline diff CLI for one-off change review.
 - Server platform: device registry, git-backed snapshot store, polling
   scheduler, and the analysis pipeline from snapshot changes to recorded

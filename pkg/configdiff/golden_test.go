@@ -73,6 +73,30 @@ func TestGoldenSummaries(t *testing.T) {
 			afterPath:  filepath.Join("..", "..", "testdata", "unifi-after.json"),
 			goldenPath: filepath.Join("..", "..", "testdata", "golden", "unifi-summary.json"),
 		},
+		{
+			name:       "eero-forward-added",
+			beforePath: filepath.Join("..", "..", "testdata", "eero-forward-before.json"),
+			afterPath:  filepath.Join("..", "..", "testdata", "eero-forward-after.json"),
+			goldenPath: filepath.Join("..", "..", "testdata", "golden", "eero-forward-summary.json"),
+		},
+		{
+			name:       "eero-reservation-removed",
+			beforePath: filepath.Join("..", "..", "testdata", "eero-reservation-before.json"),
+			afterPath:  filepath.Join("..", "..", "testdata", "eero-reservation-after.json"),
+			goldenPath: filepath.Join("..", "..", "testdata", "golden", "eero-reservation-summary.json"),
+		},
+		{
+			name:       "eero-node-removed",
+			beforePath: filepath.Join("..", "..", "testdata", "eero-node-before.json"),
+			afterPath:  filepath.Join("..", "..", "testdata", "eero-node-after.json"),
+			goldenPath: filepath.Join("..", "..", "testdata", "golden", "eero-node-summary.json"),
+		},
+		{
+			name:       "eero-no-change",
+			beforePath: filepath.Join("..", "..", "testdata", "eero-no-change-before.json"),
+			afterPath:  filepath.Join("..", "..", "testdata", "eero-no-change-after.json"),
+			goldenPath: filepath.Join("..", "..", "testdata", "golden", "eero-no-change-summary.json"),
+		},
 	}
 
 	for _, tt := range tests {

@@ -15,8 +15,12 @@ CLI-equivalent readable lines so the same risk findings apply.
 
 Eero snapshots (from the server's eero collector) are a deterministic JSON
 document assembled from the unofficial eero cloud API (network settings,
-nodes, profiles, port forwards, DHCP reservations) and diffed by the
-generic analyzer; there is no eero-specific parser mode.
+nodes, profiles, port forwards, DHCP reservations). The `eero-json` parser
+normalizes those objects into stable blocks keyed by eero `url` values.
+Port forwards map to NAT objects. DNS maps to observability. Main and guest
+WiFi identity or security settings map to management-plane changes. Eero
+nodes map to interface-like inventory blocks so node removal and topology
+changes fit the existing touched-interface field.
 
 Supported deterministic extraction includes:
 
@@ -97,6 +101,15 @@ directory, no network calls. The JSON schema
   collections such as `networkconf`, `port_overrides`, `firewallrule`, and
   `routing`. XML or `.unf` backups and multi-site exports are out of scope
   for the offline CLI; the server's UniFi collector handles live API fetches.
+- Eero support reads the server collector snapshot shape:
+  `eeros`, `forwards`, `network`, `profiles`, and `reservations`. Eero
+  forwards are NAT/port-forward entries, not ACL or firewall policy rules,
+  because the snapshot does not include source scope or the full firewall
+  policy. A forwarded internal `443` or `22` service is not treated as router
+  management-plane exposure. Default routes, VLANs, VPNs, AAA, switching
+  semantics, and full ACL broadening are not represented in the eero snapshot.
+  Password fields are redacted in parser evidence with a stable fingerprint,
+  so reports can detect password changes without printing raw WiFi secrets.
 - Fortinet support is an initial deterministic parser path for FortiOS
   `config`/`edit` blocks, not full semantic emulation of every platform
   feature.

@@ -18,6 +18,7 @@ type edgeOSParser struct{}
 type panosParser struct{}
 type junosParser struct{}
 type fortinetParser struct{}
+type eeroJSONParser struct{}
 
 var _ Parser = genericParser{}
 var _ Parser = ciscoIOSParser{}
@@ -26,6 +27,7 @@ var _ Parser = edgeOSParser{}
 var _ Parser = panosParser{}
 var _ Parser = junosParser{}
 var _ Parser = fortinetParser{}
+var _ Parser = eeroJSONParser{}
 
 func selectParser(vendor string, text string) (Parser, error) {
 	switch strings.ToLower(vendor) {
@@ -41,6 +43,8 @@ func selectParser(vendor string, text string) (Parser, error) {
 		return panosParser{}, nil
 	case "unifi", "unifi-json", "unifi-controller":
 		return unifiJSONParser{}, nil
+	case "eero", "eero-json":
+		return eeroJSONParser{}, nil
 	case "juniper", "junos":
 		return junosParser{}, nil
 	case "fortinet", "fortigate", "fortios":
@@ -48,6 +52,9 @@ func selectParser(vendor string, text string) (Parser, error) {
 	case "auto":
 		if looksUnifiJSON(text) {
 			return unifiJSONParser{}, nil
+		}
+		if looksEeroJSON(text) {
+			return eeroJSONParser{}, nil
 		}
 		if looksFortinet(text) {
 			return fortinetParser{}, nil
@@ -69,7 +76,7 @@ func selectParser(vendor string, text string) (Parser, error) {
 		}
 		return genericParser{}, nil
 	default:
-		return nil, fmt.Errorf("unsupported vendor mode %q; supported modes are auto, generic, cisco-ios, ios, ios-xe, cisco, ubiquiti, edgeswitch, ubiquiti-edgeswitch, ubiquitios, edgeswitch-cli, edgeos, vyos, ubiquiti-gateway, usg, udm, edgerouter, paloalto, palo-alto, panos, pan-os, pan, unifi, unifi-json, unifi-controller, juniper, junos, fortinet, fortigate, and fortios", vendor)
+		return nil, fmt.Errorf("unsupported vendor mode %q; supported modes are auto, generic, cisco-ios, ios, ios-xe, cisco, ubiquiti, edgeswitch, ubiquiti-edgeswitch, ubiquitios, edgeswitch-cli, edgeos, vyos, ubiquiti-gateway, usg, udm, edgerouter, paloalto, palo-alto, panos, pan-os, pan, unifi, unifi-json, unifi-controller, eero, eero-json, juniper, junos, fortinet, fortigate, and fortios", vendor)
 	}
 }
 

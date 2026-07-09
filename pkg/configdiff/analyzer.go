@@ -470,6 +470,11 @@ func rollbackCommands(change BlockChange, parser string) ([]string, string) {
 			return nil, "UniFi controller changes are applied via the controller UI/API, not a CLI. This object did not exist before; remove it through the controller or restore the prior backup after operator review."
 		}
 		return change.BeforeLines, "UniFi controller changes are applied via the controller UI/API, not a CLI. These are the before-state field values for this object; re-apply them through the controller or restore the prior backup after operator review."
+	case "eero-json":
+		if change.ChangeType == "added" {
+			return nil, "Eero network changes are applied through the eero app or cloud API, not a device CLI. This object did not exist before; remove it through eero or restore the prior snapshot after operator review."
+		}
+		return change.BeforeLines, "Eero network changes are applied through the eero app or cloud API, not a device CLI. These are the before-state field values for this object; re-apply them through eero or restore the prior snapshot after operator review."
 	case "fortinet":
 		return fortinetRollbackCommands(change)
 	default:

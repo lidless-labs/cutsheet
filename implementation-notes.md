@@ -453,3 +453,27 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   (Devices.tsx only knows file/ssh/unifi); that is a feature, not an audit
   doc fix. The README screenshot TODO (INFO finding) was also left as is,
   not in scope.
+
+## 2026-07-09 - Syslog-triggered snapshots
+
+- Added `internal/syslogtrigger` as a stdlib-only UDP listener that matches
+  packet sender IPs to enabled devices, then calls the same `makeSnapshotNow`
+  path as the REST API. It does not parse syslog message bodies; the packet is
+  only a hint to re-read the full config.
+- Matching sources come from top-level `collector_config.syslog_source` for
+  any collector and from SSH `collector_config.host` for SSH devices. The
+  existing collector config validation already ignores unknown JSON fields, so
+  `syslog_source` is inert for fetch paths and needed no collector changes.
+- The source map is rebuilt lazily with a 30 second TTL. Literal IPs avoid DNS;
+  hostnames resolve through `net.DefaultResolver` in normal operation, while
+  tests use literal `127.0.0.1` sources against real UDP sockets.
+- Triggering is per-device debounced with a fixed window: the first packet
+  arms the timer and later packets coalesce without resetting it. A sliding
+  window was rejected because a device that logs more often than the
+  debounce interval would never fire, and chatty devices are the interesting
+  ones. A second debounced fire is skipped
+  while a snapshot for that device is still in flight. Unknown sources are
+  dropped with rate-limited debug logs so noisy networks do not spam logs.
+- `cutsheet serve` now accepts `--syslog-listen` / `CUTSHEET_SYSLOG_LISTEN`
+  and `--syslog-debounce` / `CUTSHEET_SYSLOG_DEBOUNCE`; flags win over env.
+  Empty listen address keeps the feature disabled.

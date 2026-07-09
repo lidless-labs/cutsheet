@@ -26,6 +26,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   keys, and session tokens.
 - REST API with bearer token auth (`cutsheet token create`) and on-demand
   snapshots.
+- UDP syslog trigger for on-demand snapshots, with `--syslog-listen`,
+  `--syslog-debounce`, `CUTSHEET_SYSLOG_LISTEN`, and
+  `CUTSHEET_SYSLOG_DEBOUNCE`.
 - Severity-filtered webhook and Discord notifications.
 - React web UI (timeline, devices, change detail, settings), embedded into
   the server binary via go:embed with SPA fallback.

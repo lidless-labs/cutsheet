@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/solomonneas/cutsheet/internal/api"
 	"github.com/solomonneas/cutsheet/internal/notify"
@@ -362,6 +363,80 @@ func TestResolveNotifySettings(t *testing.T) {
 			}
 			if err != nil {
 				t.Fatalf("resolveNotifySettings: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("settings:\n got %+v\nwant %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveSyslogSettings(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		env     map[string]string
+		want    syslogSettings
+		wantErr string
+	}{
+		{
+			name: "defaults disabled",
+			want: syslogSettings{debounce: 10 * time.Second},
+		},
+		{
+			name: "flags only",
+			args: []string{"--syslog-listen", "127.0.0.1:5514", "--syslog-debounce", "3s"},
+			want: syslogSettings{listen: "127.0.0.1:5514", debounce: 3 * time.Second},
+		},
+		{
+			name: "env fallback",
+			env: map[string]string{
+				"CUTSHEET_SYSLOG_LISTEN":   "127.0.0.1:5514",
+				"CUTSHEET_SYSLOG_DEBOUNCE": "250ms",
+			},
+			want: syslogSettings{listen: "127.0.0.1:5514", debounce: 250 * time.Millisecond},
+		},
+		{
+			name: "flags win over env",
+			args: []string{"--syslog-listen", "127.0.0.1:5515"},
+			env: map[string]string{
+				"CUTSHEET_SYSLOG_LISTEN":   "127.0.0.1:5514",
+				"CUTSHEET_SYSLOG_DEBOUNCE": "250ms",
+			},
+			want: syslogSettings{listen: "127.0.0.1:5515", debounce: 250 * time.Millisecond},
+		},
+		{
+			name:    "invalid debounce env",
+			env:     map[string]string{"CUTSHEET_SYSLOG_DEBOUNCE": "soon"},
+			wantErr: "CUTSHEET_SYSLOG_DEBOUNCE",
+		},
+		{
+			name:    "non-positive debounce rejected",
+			args:    []string{"--syslog-debounce", "0s"},
+			wantErr: "syslog-debounce",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+			listen := fs.String("syslog-listen", "", "")
+			debounce := fs.Duration("syslog-debounce", 10*time.Second, "")
+			if err := fs.Parse(tt.args); err != nil {
+				t.Fatalf("parse flags: %v", err)
+			}
+			getenv := func(key string) string { return tt.env[key] }
+			got, err := resolveSyslogSettings(fs, *listen, *debounce, getenv)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("want error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error %q does not contain %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveSyslogSettings: %v", err)
 			}
 			if got != tt.want {
 				t.Fatalf("settings:\n got %+v\nwant %+v", got, tt.want)

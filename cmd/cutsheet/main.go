@@ -26,6 +26,7 @@ import (
 	"github.com/solomonneas/cutsheet/internal/secrets"
 	"github.com/solomonneas/cutsheet/internal/snapshots"
 	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/solomonneas/cutsheet/internal/syslogtrigger"
 	"github.com/solomonneas/cutsheet/internal/webui"
 )
 
@@ -70,6 +71,8 @@ func runServe(args []string) error {
 	webhookURL := fs.String("webhook-url", "", "POST change events as JSON to this URL (env CUTSHEET_WEBHOOK_URL)")
 	discordURL := fs.String("discord-webhook-url", "", "POST change embeds to this Discord webhook URL (env CUTSHEET_DISCORD_WEBHOOK_URL)")
 	minSeverity := fs.String("notify-min-severity", "low", "minimum change severity to notify on: none, low, medium, high (env CUTSHEET_NOTIFY_MIN_SEVERITY)")
+	syslogListen := fs.String("syslog-listen", "", "UDP syslog listen address for snapshot triggers, disabled when empty (env CUTSHEET_SYSLOG_LISTEN)")
+	syslogDebounce := fs.Duration("syslog-debounce", 10*time.Second, "coalesce repeated syslog packets per device for this duration (env CUTSHEET_SYSLOG_DEBOUNCE)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -77,6 +80,10 @@ func runServe(args []string) error {
 		return fmt.Errorf("serve requires --data-dir")
 	}
 	notifyCfg, err := resolveNotifySettings(fs, *webhookURL, *discordURL, *minSeverity, os.Getenv)
+	if err != nil {
+		return err
+	}
+	syslogCfg, err := resolveSyslogSettings(fs, *syslogListen, *syslogDebounce, os.Getenv)
 	if err != nil {
 		return err
 	}
@@ -138,9 +145,35 @@ func runServe(args []string) error {
 		return fmt.Errorf("start scheduler: %w", err)
 	}
 
+	snapshotNow := makeSnapshotNow(st, snaps, box, processChange)
+	var syslogListener *syslogtrigger.Listener
+	if syslogCfg.listen != "" {
+		syslogListener = syslogtrigger.New(st, func(ctx context.Context, deviceID string) error {
+			change, changed, err := snapshotNow(ctx, deviceID)
+			if err != nil {
+				return err
+			}
+			if changed && change != nil {
+				logger.Info("syslog-triggered snapshot recorded change",
+					"device", deviceID, "change", change.ID, "severity", change.MaxSeverity)
+			} else {
+				logger.Info("syslog-triggered snapshot found no change", "device", deviceID)
+			}
+			return nil
+		}, syslogtrigger.Options{
+			ListenAddr: syslogCfg.listen,
+			Debounce:   syslogCfg.debounce,
+			Logger:     logger,
+		})
+		if err := syslogListener.Start(ctx); err != nil {
+			sched.Stop()
+			return fmt.Errorf("start syslog trigger: %w", err)
+		}
+	}
+
 	apiHandler := api.New(api.Config{
 		Store:       st,
-		SnapshotNow: makeSnapshotNow(st, snaps, box, processChange),
+		SnapshotNow: snapshotNow,
 		Secrets:     box,
 		DevicesChanged: func() {
 			if err := sched.Refresh(); err != nil {
@@ -153,6 +186,10 @@ func runServe(args []string) error {
 	})
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
+		stop()
+		if syslogListener != nil {
+			_ = syslogListener.Wait()
+		}
 		sched.Stop()
 		return fmt.Errorf("listen on %s: %w", *listen, err)
 	}
@@ -165,14 +202,29 @@ func runServe(args []string) error {
 
 	devices, err := st.ListDevices(ctx)
 	if err != nil {
+		stop()
+		_ = srv.Close()
+		if syslogListener != nil {
+			_ = syslogListener.Wait()
+		}
+		sched.Stop()
 		return err
 	}
 	logger.Info("cutsheet server started",
 		"data_dir", *dataDir, "devices", len(devices), "listen", ln.Addr().String())
+	if syslogListener != nil {
+		logger.Info("syslog trigger started",
+			"listen", syslogListener.Addr().String(),
+			"debounce", syslogCfg.debounce.String())
+	}
 
 	select {
 	case <-ctx.Done():
 	case err := <-serveErr:
+		stop()
+		if syslogListener != nil {
+			_ = syslogListener.Wait()
+		}
 		sched.Stop()
 		return fmt.Errorf("api server: %w", err)
 	}
@@ -183,6 +235,11 @@ func runServe(args []string) error {
 		logger.Error("api shutdown failed", "error", err)
 	}
 	sched.Stop()
+	if syslogListener != nil {
+		if err := syslogListener.Wait(); err != nil {
+			logger.Error("syslog trigger shutdown failed", "error", err)
+		}
+	}
 	return nil
 }
 
@@ -283,6 +340,12 @@ type notifySettings struct {
 	minSeverity string
 }
 
+// syslogSettings is the resolved syslog-trigger config for serve.
+type syslogSettings struct {
+	listen   string
+	debounce time.Duration
+}
+
 // resolveNotifySettings merges notification flags with their environment
 // fallbacks (CUTSHEET_WEBHOOK_URL, CUTSHEET_DISCORD_WEBHOOK_URL,
 // CUTSHEET_NOTIFY_MIN_SEVERITY). An explicitly passed flag always wins over
@@ -308,6 +371,31 @@ func resolveNotifySettings(fs *flag.FlagSet, webhookURL, discordURL, minSeverity
 	case "none", "low", "medium", "high":
 	default:
 		return notifySettings{}, fmt.Errorf("invalid --notify-min-severity %q: use none, low, medium, or high", s.minSeverity)
+	}
+	return s, nil
+}
+
+// resolveSyslogSettings merges syslog trigger flags with their environment
+// fallbacks (CUTSHEET_SYSLOG_LISTEN, CUTSHEET_SYSLOG_DEBOUNCE). An explicitly
+// passed flag always wins over the environment.
+func resolveSyslogSettings(fs *flag.FlagSet, listen string, debounce time.Duration, getenv func(string) string) (syslogSettings, error) {
+	s := syslogSettings{listen: listen, debounce: debounce}
+	if !flagWasSet(fs, "syslog-listen") {
+		if v := getenv("CUTSHEET_SYSLOG_LISTEN"); v != "" {
+			s.listen = v
+		}
+	}
+	if !flagWasSet(fs, "syslog-debounce") {
+		if v := getenv("CUTSHEET_SYSLOG_DEBOUNCE"); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return syslogSettings{}, fmt.Errorf("invalid CUTSHEET_SYSLOG_DEBOUNCE %q: %w", v, err)
+			}
+			s.debounce = d
+		}
+	}
+	if s.debounce <= 0 {
+		return syslogSettings{}, fmt.Errorf("invalid --syslog-debounce %s: must be > 0", s.debounce)
 	}
 	return s, nil
 }

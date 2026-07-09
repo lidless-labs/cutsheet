@@ -401,11 +401,9 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   fallback. 2-space indent + sorted keys + trailing newline so the generic
   line differ produces readable diffs. Determinism proven by a shuffled fake
   server in tests (golden fixture, UPDATE_GOLDEN=1 refresh).
-- **Vendor default is "generic"** (`SuggestedVendor("eero") = "generic"`).
-  There is no eero parser in pkg/configdiff yet; the generic text parser
-  diffs the pretty-printed JSON lines acceptably. A dedicated eero-json
-  parser in pkg/configdiff is future work, intentionally not part of this
-  change.
+- **Vendor default is "eero"** (`SuggestedVendor("eero") = "eero"`).
+  The eero collector snapshot is now handled by the `eero-json` parser in
+  `pkg/configdiff`.
 - **Header note from reading the prior art:** the Python lib builds a
   `DEFAULT_HEADERS` dict (User-Agent etc.) but never actually attaches it to
   requests, so the cloud API demonstrably does not gate on User-Agent; the
@@ -437,7 +435,8 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   worked through GOTOOLCHAIN auto-downloads.
 - Documented the eero collector: README device-add example with the
   out-of-band session-token flow, architecture diagram entry, parsers.md
-  note (eero snapshots are generic-diffed JSON, no parser mode).
+  note. That original note described generic JSON diffing and was superseded
+  by the 2026-07-09 `eero-json` parser entry below.
 - New CI `web` job: `npm ci && npm run build` then
   `git diff --exit-code web/dist`, so the committed embedded UI can no
   longer drift from web/src and TypeScript errors fail CI. Also added a
@@ -477,3 +476,41 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
 - `cutsheet serve` now accepts `--syslog-listen` / `CUTSHEET_SYSLOG_LISTEN`
   and `--syslog-debounce` / `CUTSHEET_SYSLOG_DEBOUNCE`; flags win over env.
   Empty listen address keeps the feature disabled.
+
+## 2026-07-09 - eero configdiff parser
+
+- Added `pkg/configdiff/eero.go` for the deterministic eero collector JSON
+  shape: `eeros`, `forwards`, `network`, `profiles`, and `reservations`.
+  Auto-detection requires those top-level sections plus `/2.2/networks/` or
+  `/2.2/eeros/` URL signatures, and it runs after UniFi detection so UniFi
+  exports containing a stray `forwards` key still parse as UniFi.
+- Mapping is deliberately narrow. `forwards[]` entries become NAT blocks with
+  eero port-forward evidence; they do not become ACL/firewall rules because
+  eero exposes destination port, target IP, protocol, and enabled state, but
+  not source scope or full firewall policy. This avoids false ACL broadening
+  and avoids treating a forwarded internal `443` or `22` service as router
+  management exposure.
+- `network.dns` maps to observability, WiFi name/password/WPA3/guest settings
+  map to management, eero nodes map to interface-like inventory blocks, and
+  profiles/reservations remain block changes only. Unsupported requested rule
+  families - default route, VLAN, switching, VPN, AAA, and full ACL policy -
+  are not represented in the eero snapshot.
+- Parser evidence redacts fields ending in `.password` with a stable SHA-256
+  fingerprint prefix, so password changes are visible in diffs without raw
+  WiFi secrets appearing in reports.
+
+## 2026-07-09 - eero risk rules
+
+- Added two eero-only analyzer rules without changing `Explain()`, exported
+  types, or the diff-analysis schema. Removed eero mesh inventory blocks now
+  emit a medium availability finding because client coverage and backhaul
+  redundancy can change even when no CLI-style interface shutdown line exists.
+- Removed eero reservations are correlated against the normalized after-state
+  NAT blocks. If a retained eero port forward still targets the removed
+  reservation IP, the analyzer emits a high NAT finding. This uses the
+  `after.Blocks` already available inside `analyze`, so unchanged forwards can
+  be considered without widening the public API.
+- The regression fixture is `testdata/eero-reservation-forward-*.json`, using
+  only 198.18.0.0/15 addresses. The existing eero node golden was updated for
+  the new availability title, and the reservation-forward golden pins the high
+  retained-forward title.

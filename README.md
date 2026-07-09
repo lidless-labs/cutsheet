@@ -178,8 +178,8 @@ and carry no refresh token, so there is no transparent refresh: when the API
 returns 401, re-authenticate and update `session_token`. `network_id` is
 optional when the account has exactly one network; with several, the error
 message lists them. Snapshots are a deterministic JSON document (network
-settings, nodes, profiles, port forwards, reservations) diffed by the
-generic analyzer.
+settings, nodes, profiles, port forwards, reservations) analyzed by the
+`eero-json` parser.
 
 Notes:
 
@@ -274,6 +274,7 @@ Vendor support:
 | Juniper Junos | `juniper`, `junos` | `set` and `delete` command text | Initial deterministic Junos parser path |
 | Fortinet FortiGate/FortiOS | `fortinet`, `fortigate`, `fortios` | `config` and `edit` block text | Initial deterministic FortiOS parser path |
 | UniFi Network controller | `unifi`, `unifi-json`, `unifi-controller` | JSON export | Flattens JSON into stable pseudo-lines and readable CLI-equivalent lines |
+| eero network | `eero`, `eero-json` | Collector JSON snapshot | Maps eero port forwards to NAT objects and redacts WiFi passwords in evidence |
 
 See [docs/parsers.md](docs/parsers.md) for extraction coverage, the full
 risk-finding list, and per-vendor limitations.

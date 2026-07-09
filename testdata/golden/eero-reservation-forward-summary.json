@@ -1,0 +1,17 @@
+{
+  "parser": "eero-json",
+  "detected_vendor": "eero",
+  "device_type": "mesh",
+  "block_changes": 1,
+  "touched_interfaces": 0,
+  "touched_vlans": 0,
+  "touched_routes": 0,
+  "touched_rules": 0,
+  "touched_nat": 0,
+  "touched_vpn": 0,
+  "switching_changes": 0,
+  "rollback_confidence": "risky",
+  "risk_titles": [
+    "Eero reservation removed while port forward still targets it"
+  ]
+}

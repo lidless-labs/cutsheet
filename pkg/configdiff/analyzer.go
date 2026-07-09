@@ -2,6 +2,7 @@ package configdiff
 
 import (
 	"fmt"
+	"net/netip"
 	"regexp"
 	"sort"
 	"strings"
@@ -25,7 +26,7 @@ func analyze(before, after parsedConfig, requestedVendor string) Analysis {
 		SwitchingChanges:         switchingChanges(changes),
 	}
 	analysis.DetectedPlatform.RequestedVendor = requestedVendor
-	analysis.RiskFindings = riskFindings(changes)
+	analysis.RiskFindings = riskFindings(changes, after.Blocks)
 	analysis.Rollback = rollbackAnalysis(changes, analysis.RiskFindings, analysis.DetectedPlatform.Parser)
 	return analysis
 }
@@ -235,7 +236,7 @@ func categoryChanges(changes []BlockChange, kind string) []CategoryChange {
 	return out
 }
 
-func riskFindings(changes []BlockChange) []RiskFinding {
+func riskFindings(changes []BlockChange, afterBlocks []configBlock) []RiskFinding {
 	findings := []RiskFinding{}
 	add := func(severity, category, title, recommendation string, evidence []string, details []string) {
 		key := severity + "|" + category + "|" + title + "|" + recommendation
@@ -250,11 +251,27 @@ func riskFindings(changes []BlockChange) []RiskFinding {
 		findings = append(findings, RiskFinding{Severity: severity, Category: category, Title: title, Details: uniquePreserve(details), Evidence: uniquePreserve(evidence), Recommendation: recommendation})
 	}
 
+	eeroForwardsByIP := eeroForwardBlocksByClientIP(afterBlocks)
 	for _, change := range changes {
 		beforeLines := change.BeforeLines
 		afterLines := change.AfterLines
 		allLines := append(append([]string{}, beforeLines...), afterLines...)
 
+		if eeroMeshNodeRemoved(change) {
+			add("medium", "availability", "Eero mesh node removed", "Confirm mesh coverage, backhaul redundancy, and client reachability before accepting the removed node.", beforeLines, []string{"Removed eero node block: " + change.Header})
+		}
+		if change.ChangeType == "removed" && change.Kind == "reservation" {
+			for _, ip := range eeroReservationIPs(beforeLines) {
+				for _, forward := range eeroForwardsByIP[ip] {
+					evidence := uniquePreserve(append(append([]string{}, beforeLines...), forward.Lines...))
+					details := []string{
+						"Removed reservation IP: " + ip,
+						"Retained eero forward: " + forward.Header,
+					}
+					add("high", "nat", "Eero reservation removed while port forward still targets it", "Restore the reservation, retarget the forward to a stable host, or remove the forward before relying on inbound reachability.", evidence, details)
+				}
+			}
+		}
 		if anyLine(allLines, isDefaultRouteLine) {
 			add("high", "routing", "Default route changed", "Confirm upstream reachability, failover behavior, and expected next hop before committing.", combinedEvidence(change), beforeAfterDetails("Default route", beforeLines, afterLines, isDefaultRouteLine))
 		}
@@ -308,6 +325,73 @@ func riskFindings(changes []BlockChange) []RiskFinding {
 		findings[i].ID = fmt.Sprintf("RISK-%03d", i+1)
 	}
 	return findings
+}
+
+func eeroMeshNodeRemoved(change BlockChange) bool {
+	return change.ChangeType == "removed" &&
+		change.Kind == "interface" &&
+		strings.HasPrefix(change.ID, "interface:eero-") &&
+		anyLine(change.BeforeLines, func(line string) bool { return strings.HasPrefix(line, "eero[") })
+}
+
+func eeroReservationIPs(lines []string) []string {
+	ips := []string{}
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "reservation[") || !strings.Contains(line, "].ip = ") {
+			continue
+		}
+		_, value, ok := strings.Cut(line, " = ")
+		if !ok {
+			continue
+		}
+		if _, err := netip.ParseAddr(value); err != nil {
+			continue
+		}
+		ips = append(ips, value)
+	}
+	return uniquePreserve(ips)
+}
+
+func eeroForwardBlocksByClientIP(blocks []configBlock) map[string][]configBlock {
+	out := map[string][]configBlock{}
+	for _, block := range blocks {
+		if block.Kind != "nat" || !strings.HasPrefix(block.ID, "nat:/2.2/networks/") {
+			continue
+		}
+		for _, ip := range eeroForwardClientIPs(block.Lines) {
+			out[ip] = append(out[ip], block)
+		}
+	}
+	return out
+}
+
+func eeroForwardClientIPs(lines []string) []string {
+	ips := []string{}
+	for _, line := range lines {
+		if strings.HasPrefix(line, "nat port-forward ") {
+			fields := strings.Fields(line)
+			for i := 0; i+1 < len(fields); i++ {
+				if fields[i] == "client" {
+					if _, err := netip.ParseAddr(fields[i+1]); err == nil {
+						ips = append(ips, fields[i+1])
+					}
+				}
+			}
+			continue
+		}
+		if !strings.HasPrefix(line, "forward[") || !strings.Contains(line, "].ip = ") {
+			continue
+		}
+		_, value, ok := strings.Cut(line, " = ")
+		if !ok {
+			continue
+		}
+		if _, err := netip.ParseAddr(value); err != nil {
+			continue
+		}
+		ips = append(ips, value)
+	}
+	return uniquePreserve(ips)
 }
 
 func rollbackAnalysis(changes []BlockChange, risks []RiskFinding, parser string) RollbackAnalysis {
@@ -470,6 +554,11 @@ func rollbackCommands(change BlockChange, parser string) ([]string, string) {
 			return nil, "UniFi controller changes are applied via the controller UI/API, not a CLI. This object did not exist before; remove it through the controller or restore the prior backup after operator review."
 		}
 		return change.BeforeLines, "UniFi controller changes are applied via the controller UI/API, not a CLI. These are the before-state field values for this object; re-apply them through the controller or restore the prior backup after operator review."
+	case "eero-json":
+		if change.ChangeType == "added" {
+			return nil, "Eero network changes are applied through the eero app or cloud API, not a device CLI. This object did not exist before; remove it through eero or restore the prior snapshot after operator review."
+		}
+		return change.BeforeLines, "Eero network changes are applied through the eero app or cloud API, not a device CLI. These are the before-state field values for this object; re-apply them through eero or restore the prior snapshot after operator review."
 	case "fortinet":
 		return fortinetRollbackCommands(change)
 	default:

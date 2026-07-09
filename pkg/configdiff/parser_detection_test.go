@@ -16,6 +16,8 @@ func TestSelectParserVendorAliases(t *testing.T) {
 		"unifi":               "*configdiff.unifiJSONParser",
 		"unifi-json":          "*configdiff.unifiJSONParser",
 		"unifi-controller":    "*configdiff.unifiJSONParser",
+		"eero":                "*configdiff.eeroJSONParser",
+		"eero-json":           "*configdiff.eeroJSONParser",
 		"cisco-ios":           "*configdiff.ciscoIOSParser",
 		"junos":               "*configdiff.junosParser",
 		"fortinet":            "*configdiff.fortinetParser",
@@ -147,6 +149,45 @@ func TestAutoDetectUnifiJSONFirst(t *testing.T) {
 	}
 }
 
+func TestAutoDetectEeroJSON(t *testing.T) {
+	text := `{"eeros":[{"url":"/2.2/eeros/11","serial":"S1111111111111","mac_address":"00:00:5E:00:53:01","gateway":true}],"forwards":[],"network":{"url":"/2.2/networks/1","name":"Lab Mesh","upnp":false},"profiles":[],"reservations":[]}`
+	p, err := selectParser("auto", text)
+	if err != nil {
+		t.Fatalf("selectParser auto error: %v", err)
+	}
+	parsed := p.Parse(text, "auto")
+	if parsed.Detection.Parser != "eero-json" || parsed.Detection.DetectedVendor != "eero" {
+		t.Errorf("detection = %s/%s, want eero-json/eero", parsed.Detection.Parser, parsed.Detection.DetectedVendor)
+	}
+	if parsed.Detection.DeviceType != "mesh" {
+		t.Errorf("device type = %q, want mesh", parsed.Detection.DeviceType)
+	}
+}
+
+func TestUnifiJSONStillDetectsAsUnifi(t *testing.T) {
+	text := `{"networkconf":[{"_id":"n1","name":"Corp","vlan":10}],"port_overrides":[{"port_idx":1,"native_networkconf_id":"n1"}],"forwards":[{"description":"not an eero export"}]}`
+	p, err := selectParser("auto", text)
+	if err != nil {
+		t.Fatalf("selectParser auto error: %v", err)
+	}
+	parsed := p.Parse(text, "auto")
+	if parsed.Detection.Parser != "unifi-json" || parsed.Detection.DetectedVendor != "ubiquiti" {
+		t.Errorf("detection = %s/%s, want unifi-json/ubiquiti", parsed.Detection.Parser, parsed.Detection.DetectedVendor)
+	}
+}
+
+func TestEeroDetectorLeavesGenericTextAlone(t *testing.T) {
+	text := "operator note: add a forward, remove a reservation, and check the eero node inventory\n"
+	p, err := selectParser("auto", text)
+	if err != nil {
+		t.Fatalf("selectParser auto error: %v", err)
+	}
+	parsed := p.Parse(text, "auto")
+	if parsed.Detection.Parser != "generic" || parsed.Detection.DetectedVendor != "generic" {
+		t.Errorf("detection = %s/%s, want generic/generic", parsed.Detection.Parser, parsed.Detection.DetectedVendor)
+	}
+}
+
 func TestUnifiJSONStableAcrossArrayOrder(t *testing.T) {
 	// Reordering array entries must not change the analysis: block IDs key on stable
 	// content (name/_id/port_idx), not array index.
@@ -182,6 +223,8 @@ func typeName(v any) string {
 		return "*configdiff.panosParser"
 	case unifiJSONParser:
 		return "*configdiff.unifiJSONParser"
+	case eeroJSONParser:
+		return "*configdiff.eeroJSONParser"
 	case ciscoIOSParser:
 		return "*configdiff.ciscoIOSParser"
 	case junosParser:

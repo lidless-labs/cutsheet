@@ -381,29 +381,31 @@ func TestResolveSyslogSettings(t *testing.T) {
 	}{
 		{
 			name: "defaults disabled",
-			want: syslogSettings{debounce: 10 * time.Second},
+			want: syslogSettings{debounce: 10 * time.Second, cooldown: 30 * time.Second},
 		},
 		{
 			name: "flags only",
-			args: []string{"--syslog-listen", "127.0.0.1:5514", "--syslog-debounce", "3s"},
-			want: syslogSettings{listen: "127.0.0.1:5514", debounce: 3 * time.Second},
+			args: []string{"--syslog-listen", "127.0.0.1:5514", "--syslog-debounce", "3s", "--syslog-cooldown", "45s"},
+			want: syslogSettings{listen: "127.0.0.1:5514", debounce: 3 * time.Second, cooldown: 45 * time.Second},
 		},
 		{
 			name: "env fallback",
 			env: map[string]string{
 				"CUTSHEET_SYSLOG_LISTEN":   "127.0.0.1:5514",
 				"CUTSHEET_SYSLOG_DEBOUNCE": "250ms",
+				"CUTSHEET_SYSLOG_COOLDOWN": "40s",
 			},
-			want: syslogSettings{listen: "127.0.0.1:5514", debounce: 250 * time.Millisecond},
+			want: syslogSettings{listen: "127.0.0.1:5514", debounce: 250 * time.Millisecond, cooldown: 40 * time.Second},
 		},
 		{
 			name: "flags win over env",
-			args: []string{"--syslog-listen", "127.0.0.1:5515"},
+			args: []string{"--syslog-listen", "127.0.0.1:5515", "--syslog-cooldown", "35s"},
 			env: map[string]string{
 				"CUTSHEET_SYSLOG_LISTEN":   "127.0.0.1:5514",
 				"CUTSHEET_SYSLOG_DEBOUNCE": "250ms",
+				"CUTSHEET_SYSLOG_COOLDOWN": "40s",
 			},
-			want: syslogSettings{listen: "127.0.0.1:5515", debounce: 250 * time.Millisecond},
+			want: syslogSettings{listen: "127.0.0.1:5515", debounce: 250 * time.Millisecond, cooldown: 35 * time.Second},
 		},
 		{
 			name:    "invalid debounce env",
@@ -411,9 +413,19 @@ func TestResolveSyslogSettings(t *testing.T) {
 			wantErr: "CUTSHEET_SYSLOG_DEBOUNCE",
 		},
 		{
+			name:    "invalid cooldown env",
+			env:     map[string]string{"CUTSHEET_SYSLOG_COOLDOWN": "later"},
+			wantErr: "CUTSHEET_SYSLOG_COOLDOWN",
+		},
+		{
 			name:    "non-positive debounce rejected",
 			args:    []string{"--syslog-debounce", "0s"},
 			wantErr: "syslog-debounce",
+		},
+		{
+			name:    "non-positive cooldown rejected",
+			args:    []string{"--syslog-cooldown", "0s"},
+			wantErr: "syslog-cooldown",
 		},
 	}
 	for _, tt := range tests {
@@ -421,11 +433,12 @@ func TestResolveSyslogSettings(t *testing.T) {
 			fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 			listen := fs.String("syslog-listen", "", "")
 			debounce := fs.Duration("syslog-debounce", 10*time.Second, "")
+			cooldown := fs.Duration("syslog-cooldown", 30*time.Second, "")
 			if err := fs.Parse(tt.args); err != nil {
 				t.Fatalf("parse flags: %v", err)
 			}
 			getenv := func(key string) string { return tt.env[key] }
-			got, err := resolveSyslogSettings(fs, *listen, *debounce, getenv)
+			got, err := resolveSyslogSettings(fs, *listen, *debounce, *cooldown, getenv)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("want error containing %q, got nil", tt.wantErr)

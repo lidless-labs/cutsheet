@@ -73,6 +73,7 @@ func runServe(args []string) error {
 	minSeverity := fs.String("notify-min-severity", "low", "minimum change severity to notify on: none, low, medium, high (env CUTSHEET_NOTIFY_MIN_SEVERITY)")
 	syslogListen := fs.String("syslog-listen", "", "UDP syslog listen address for snapshot triggers, disabled when empty (env CUTSHEET_SYSLOG_LISTEN)")
 	syslogDebounce := fs.Duration("syslog-debounce", 10*time.Second, "coalesce repeated syslog packets per device for this duration (env CUTSHEET_SYSLOG_DEBOUNCE)")
+	syslogCooldown := fs.Duration("syslog-cooldown", 30*time.Second, "drop per-device syslog packets for this duration after a snapshot finishes (env CUTSHEET_SYSLOG_COOLDOWN)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -83,7 +84,7 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	syslogCfg, err := resolveSyslogSettings(fs, *syslogListen, *syslogDebounce, os.Getenv)
+	syslogCfg, err := resolveSyslogSettings(fs, *syslogListen, *syslogDebounce, *syslogCooldown, os.Getenv)
 	if err != nil {
 		return err
 	}
@@ -163,6 +164,7 @@ func runServe(args []string) error {
 		}, syslogtrigger.Options{
 			ListenAddr: syslogCfg.listen,
 			Debounce:   syslogCfg.debounce,
+			Cooldown:   syslogCfg.cooldown,
 			Logger:     logger,
 		})
 		if err := syslogListener.Start(ctx); err != nil {
@@ -215,7 +217,8 @@ func runServe(args []string) error {
 	if syslogListener != nil {
 		logger.Info("syslog trigger started",
 			"listen", syslogListener.Addr().String(),
-			"debounce", syslogCfg.debounce.String())
+			"debounce", syslogCfg.debounce.String(),
+			"cooldown", syslogCfg.cooldown.String())
 	}
 
 	select {
@@ -344,6 +347,7 @@ type notifySettings struct {
 type syslogSettings struct {
 	listen   string
 	debounce time.Duration
+	cooldown time.Duration
 }
 
 // resolveNotifySettings merges notification flags with their environment
@@ -376,10 +380,11 @@ func resolveNotifySettings(fs *flag.FlagSet, webhookURL, discordURL, minSeverity
 }
 
 // resolveSyslogSettings merges syslog trigger flags with their environment
-// fallbacks (CUTSHEET_SYSLOG_LISTEN, CUTSHEET_SYSLOG_DEBOUNCE). An explicitly
-// passed flag always wins over the environment.
-func resolveSyslogSettings(fs *flag.FlagSet, listen string, debounce time.Duration, getenv func(string) string) (syslogSettings, error) {
-	s := syslogSettings{listen: listen, debounce: debounce}
+// fallbacks (CUTSHEET_SYSLOG_LISTEN, CUTSHEET_SYSLOG_DEBOUNCE,
+// CUTSHEET_SYSLOG_COOLDOWN). An explicitly passed flag always wins over the
+// environment.
+func resolveSyslogSettings(fs *flag.FlagSet, listen string, debounce, cooldown time.Duration, getenv func(string) string) (syslogSettings, error) {
+	s := syslogSettings{listen: listen, debounce: debounce, cooldown: cooldown}
 	if !flagWasSet(fs, "syslog-listen") {
 		if v := getenv("CUTSHEET_SYSLOG_LISTEN"); v != "" {
 			s.listen = v
@@ -394,8 +399,20 @@ func resolveSyslogSettings(fs *flag.FlagSet, listen string, debounce time.Durati
 			s.debounce = d
 		}
 	}
+	if !flagWasSet(fs, "syslog-cooldown") {
+		if v := getenv("CUTSHEET_SYSLOG_COOLDOWN"); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return syslogSettings{}, fmt.Errorf("invalid CUTSHEET_SYSLOG_COOLDOWN %q: %w", v, err)
+			}
+			s.cooldown = d
+		}
+	}
 	if s.debounce <= 0 {
 		return syslogSettings{}, fmt.Errorf("invalid --syslog-debounce %s: must be > 0", s.debounce)
+	}
+	if s.cooldown <= 0 {
+		return syslogSettings{}, fmt.Errorf("invalid --syslog-cooldown %s: must be > 0", s.cooldown)
 	}
 	return s, nil
 }

@@ -46,6 +46,9 @@ interface FormState {
   unifiUsername: string;
   unifiPassword: string;
   unifiInsecureTls: boolean;
+  // eero
+  eeroSessionToken: string;
+  eeroNetworkId: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -72,6 +75,8 @@ const EMPTY_FORM: FormState = {
   unifiUsername: "",
   unifiPassword: "",
   unifiInsecureTls: false,
+  eeroSessionToken: "",
+  eeroNetworkId: "",
 };
 
 function str(cfg: Record<string, unknown>, key: string): string {
@@ -106,6 +111,8 @@ function formFromDevice(d: Device): FormState {
     unifiUsername: str(cfg, "username"),
     unifiPassword: str(cfg, "password"),
     unifiInsecureTls: cfg.insecure_tls === true,
+    eeroSessionToken: str(cfg, "session_token"),
+    eeroNetworkId: str(cfg, "network_id"),
   };
 }
 
@@ -135,6 +142,12 @@ function collectorConfig(f: FormState): Record<string, unknown> {
       if (f.unifiSite) cfg.site = f.unifiSite;
       if (f.unifiPassword) cfg.password = f.unifiPassword;
       if (f.unifiInsecureTls) cfg.insecure_tls = true;
+      return cfg;
+    }
+    case "eero": {
+      const cfg: Record<string, unknown> = {};
+      if (f.eeroSessionToken) cfg.session_token = f.eeroSessionToken;
+      if (f.eeroNetworkId) cfg.network_id = f.eeroNetworkId;
       return cfg;
     }
     default:
@@ -326,6 +339,7 @@ export default function Devices() {
                 <option value="file">file</option>
                 <option value="ssh">ssh</option>
                 <option value="unifi">unifi</option>
+                <option value="eero">eero</option>
               </select>
             </label>
             <label className="field">
@@ -495,6 +509,34 @@ export default function Devices() {
               </>
             )}
 
+            {form.collectorType === "eero" && (
+              <>
+                <label className="field full">
+                  Session token
+                  <input
+                    type="password"
+                    className="mono"
+                    value={form.eeroSessionToken}
+                    onChange={(e) => set("eeroSessionToken", e.target.value)}
+                    required={form.editingId === null}
+                  />
+                  <span className="form-hint">
+                    Obtain a session token out of band, for example with eero-cli (eero auth),
+                    and paste it here. Cutsheet does not run eero's OTP login flow.
+                  </span>
+                </label>
+                <label className="field">
+                  Network ID
+                  <input
+                    className="mono"
+                    value={form.eeroNetworkId}
+                    onChange={(e) => set("eeroNetworkId", e.target.value)}
+                    placeholder="optional for a single-network account"
+                  />
+                </label>
+              </>
+            )}
+
             <div className="form-actions">
               <button className="btn-primary" type="submit" disabled={busy}>
                 {busy ? "Saving..." : form.editingId ? "Save changes" : "Add device"}
@@ -517,7 +559,7 @@ export default function Devices() {
           <h2>No devices yet</h2>
           <p>
             Add your first device to start watching its configuration. The file collector
-            works with any config you can drop on disk; ssh and unifi collect live.
+            works with any config you can drop on disk; ssh, unifi, and eero collect live.
           </p>
           {!showForm && (
             <button className="btn-primary" onClick={openAdd}>

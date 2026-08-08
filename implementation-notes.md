@@ -543,3 +543,18 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
 - Corrected the 2026-07-07 note that claimed Devices.tsx lacked an eero form.
   The page already offers collector type `eero` with session token and
   network ID fields.
+
+## 2026-08-08 - Go module identity (issue 19)
+
+- Migrated the module path from `github.com/solomonneas/cutsheet` to
+  `github.com/lidless-labs/cutsheet` before first release so `go install` and
+  downstream imports match the canonical GitHub org. This is an identity
+  rename only: `pkg/configdiff` stays in place as shared product lineage.
+- Every internal Go import was rewritten to the new path. Clone/security docs
+  that advertised the old repo URL were updated to match; historical notes
+  that record the original bootstrap path were left alone.
+- Regression guard lives in `internal/modidentity`: it asserts `go.mod`
+  declares the canonical module and that no `.go` file imports the legacy
+  prefix. CI runs that package explicitly; `./scripts/verify` covers it via
+  `go test ./...`. The legacy path constant is assembled from parts so a
+  bulk rewrite cannot neutralize the guard.

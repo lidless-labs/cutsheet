@@ -14,10 +14,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/solomonneas/cutsheet/internal/collector"
-	"github.com/solomonneas/cutsheet/internal/pipeline"
-	"github.com/solomonneas/cutsheet/internal/snapshots"
-	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/internal/collector"
+	"github.com/lidless-labs/cutsheet/internal/pipeline"
+	"github.com/lidless-labs/cutsheet/internal/snapshots"
+	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
 //go:embed fixtures

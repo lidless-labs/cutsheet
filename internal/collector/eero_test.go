@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/solomonneas/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/secrets"
 )
 
 // fakeEero emulates the eero cloud API (api-user.e2ro.com style): cookie

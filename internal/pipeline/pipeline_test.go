@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/solomonneas/cutsheet/internal/scheduler"
-	"github.com/solomonneas/cutsheet/internal/snapshots"
-	"github.com/solomonneas/cutsheet/internal/store"
-	"github.com/solomonneas/cutsheet/pkg/configdiff"
+	"github.com/lidless-labs/cutsheet/internal/scheduler"
+	"github.com/lidless-labs/cutsheet/internal/snapshots"
+	"github.com/lidless-labs/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/pkg/configdiff"
 )
 
 func testLogger() *slog.Logger {

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/solomonneas/cutsheet/web"
+	"github.com/lidless-labs/cutsheet/web"
 )
 
 func TestHandlerServesIndex(t *testing.T) {

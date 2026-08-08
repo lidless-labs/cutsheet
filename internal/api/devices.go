@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/solomonneas/cutsheet/internal/collector"
-	"github.com/solomonneas/cutsheet/internal/deviceconfig"
-	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/internal/collector"
+	"github.com/lidless-labs/cutsheet/internal/deviceconfig"
+	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
 // redactedValue replaces credential material in API responses.

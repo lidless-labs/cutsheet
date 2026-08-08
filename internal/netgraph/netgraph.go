@@ -16,7 +16,7 @@ package netgraph
 import (
 	"sort"
 
-	"github.com/solomonneas/cutsheet/pkg/configdiff"
+	"github.com/lidless-labs/cutsheet/pkg/configdiff"
 )
 
 // Node kinds.

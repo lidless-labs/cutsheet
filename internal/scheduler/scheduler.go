@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/solomonneas/cutsheet/internal/collector"
-	"github.com/solomonneas/cutsheet/internal/secrets"
-	"github.com/solomonneas/cutsheet/internal/snapshots"
-	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/internal/collector"
+	"github.com/lidless-labs/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/snapshots"
+	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
 // defaultFetchTimeout bounds a single collector fetch.

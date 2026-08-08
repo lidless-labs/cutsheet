@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/solomonneas/cutsheet/pkg/configdiff"
+	"github.com/lidless-labs/cutsheet/pkg/configdiff"
 )
 
 func main() {

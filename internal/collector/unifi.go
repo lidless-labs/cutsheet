@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/solomonneas/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/secrets"
 )
 
 // unifiHTTPTimeout bounds each HTTP request to the controller. The fetch

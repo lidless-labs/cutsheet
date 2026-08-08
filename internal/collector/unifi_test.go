@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/solomonneas/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/secrets"
 )
 
 // fakeController emulates a UniFi Network controller in either UniFi OS or

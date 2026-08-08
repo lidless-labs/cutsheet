@@ -27,7 +27,7 @@ Cutsheet is a self-hosted network change intelligence platform: it watches devic
 ## Local dev
 
 ```bash
-git clone https://github.com/solomonneas/cutsheet.git
+git clone https://github.com/lidless-labs/cutsheet.git
 cd cutsheet
 make test    # go test ./...
 make vet     # go vet ./...

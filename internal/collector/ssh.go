@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/solomonneas/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/secrets"
 	"golang.org/x/crypto/ssh"
 )
 

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/solomonneas/cutsheet/internal/snapshots"
-	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/internal/snapshots"
+	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
 // fakeLister is an in-memory DeviceLister.

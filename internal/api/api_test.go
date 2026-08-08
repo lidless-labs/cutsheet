@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/solomonneas/cutsheet/internal/secrets"
-	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
 // newTestStore opens a fresh store in a temp dir.

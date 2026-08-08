@@ -61,6 +61,12 @@ The v1 risk engine flags at least:
 - AAA/auth changes
 - management access changes such as SSH/SNMP/HTTP
 - logging/monitoring removal
+- undefined-but-referenced structures applied to interfaces: dangling ACL /
+  firewall filter names (`ip access-group`, EdgeOS `firewall … name`),
+  route-maps (`ip policy route-map`), and prefix-lists matched by an
+  interface-applied route-map. High severity, category `undefined_reference`.
+  Unchanged dangling state and removed references are silent. Names compare
+  case-insensitively.
 
 ## Parser Architecture
 

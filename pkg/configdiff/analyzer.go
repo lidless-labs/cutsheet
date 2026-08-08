@@ -26,7 +26,7 @@ func analyze(before, after parsedConfig, requestedVendor string) Analysis {
 		SwitchingChanges:         switchingChanges(changes),
 	}
 	analysis.DetectedPlatform.RequestedVendor = requestedVendor
-	analysis.RiskFindings = riskFindings(changes, after.Blocks)
+	analysis.RiskFindings = riskFindings(changes, before.Blocks, after.Blocks)
 	analysis.Rollback = rollbackAnalysis(changes, analysis.RiskFindings, analysis.DetectedPlatform.Parser)
 	return analysis
 }
@@ -236,7 +236,7 @@ func categoryChanges(changes []BlockChange, kind string) []CategoryChange {
 	return out
 }
 
-func riskFindings(changes []BlockChange, afterBlocks []configBlock) []RiskFinding {
+func riskFindings(changes []BlockChange, beforeBlocks, afterBlocks []configBlock) []RiskFinding {
 	findings := []RiskFinding{}
 	add := func(severity, category, title, recommendation string, evidence []string, details []string) {
 		key := severity + "|" + category + "|" + title + "|" + recommendation
@@ -321,6 +321,7 @@ func riskFindings(changes []BlockChange, afterBlocks []configBlock) []RiskFindin
 		}
 		appendSwitchingFindings(add, change)
 	}
+	appendUndefinedReferenceFindings(add, beforeBlocks, afterBlocks)
 	for i := range findings {
 		findings[i].ID = fmt.Sprintf("RISK-%03d", i+1)
 	}

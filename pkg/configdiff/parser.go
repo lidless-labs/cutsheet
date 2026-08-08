@@ -734,6 +734,12 @@ func classifyLine(line string) (kind, id, header string, multiline bool) {
 		return "routing", "routing:" + strings.ToLower(strings.Join(fields[1:], " ")), line, true
 	case strings.HasPrefix(lower, "ip access-list ") && len(fields) >= 4:
 		return "acl", "acl:" + strings.ToLower(strings.Join(fields[3:], " ")), line, true
+	case strings.HasPrefix(lower, "route-map ") && len(fields) >= 2:
+		return "route-map", "route-map:" + strings.ToLower(fields[1]), line, true
+	case strings.HasPrefix(lower, "ip prefix-list ") && len(fields) >= 3:
+		return "prefix-list", "prefix-list:" + strings.ToLower(fields[2]), line, false
+	case strings.HasPrefix(lower, "ipv6 prefix-list ") && len(fields) >= 3:
+		return "prefix-list", "prefix-list:" + strings.ToLower(fields[2]), line, false
 	case strings.HasPrefix(lower, "line ") && len(fields) >= 2:
 		return "management", "management:" + strings.ToLower(strings.Join(fields[1:], " ")), line, true
 	case strings.HasPrefix(lower, "object network ") && len(fields) >= 3:

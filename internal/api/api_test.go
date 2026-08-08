@@ -288,6 +288,94 @@ func TestDeviceSecretRedaction(t *testing.T) {
 	}
 }
 
+func TestDeviceEeroSessionTokenRedaction(t *testing.T) {
+	dataDir := t.TempDir()
+	box, err := secrets.Open(dataDir)
+	if err != nil {
+		t.Fatalf("open secrets: %v", err)
+	}
+	h, st := newTestServer(t, func(c *Config) { c.Secrets = box })
+
+	body := `{"id":"mesh1","collector_type":"eero","collector_config":{"session_token":"eero-token-123","network_id":"net-1","base_url":"https://api.example.invalid","label":"keep-me"}}`
+	rec := do(t, h, "POST", "/api/v1/devices", body)
+	wantStatus(t, rec, http.StatusCreated)
+	created := decode[deviceJSON](t, rec)
+	assertEeroConfigRedacted(t, "create", created.CollectorConfig)
+	if strings.Contains(rec.Body.String(), "eero-token-123") {
+		t.Fatal("plaintext session_token leaked in create response")
+	}
+
+	stored, err := st.GetDevice(context.Background(), "mesh1")
+	if err != nil {
+		t.Fatalf("get stored device: %v", err)
+	}
+	var storedCfg map[string]any
+	if err := json.Unmarshal([]byte(stored.CollectorConfig), &storedCfg); err != nil {
+		t.Fatalf("parse stored config: %v", err)
+	}
+	encToken, _ := storedCfg["session_token"].(string)
+	if !strings.HasPrefix(encToken, "enc:v1:") {
+		t.Fatalf("stored session_token not encrypted: %q", encToken)
+	}
+
+	rec = do(t, h, "GET", "/api/v1/devices/mesh1", "")
+	wantStatus(t, rec, http.StatusOK)
+	got := decode[deviceJSON](t, rec)
+	assertEeroConfigRedacted(t, "get", got.CollectorConfig)
+	if strings.Contains(rec.Body.String(), "eero-token-123") || strings.Contains(rec.Body.String(), "enc:v1:") {
+		t.Fatalf("GET leaked session_token: %s", rec.Body.String())
+	}
+
+	rec = do(t, h, "GET", "/api/v1/devices", "")
+	wantStatus(t, rec, http.StatusOK)
+	list := decode[map[string][]deviceJSON](t, rec)
+	if len(list["devices"]) != 1 {
+		t.Fatalf("list devices: %+v", list)
+	}
+	assertEeroConfigRedacted(t, "list", list["devices"][0].CollectorConfig)
+	if strings.Contains(rec.Body.String(), "eero-token-123") || strings.Contains(rec.Body.String(), "enc:v1:") {
+		t.Fatalf("LIST leaked session_token: %s", rec.Body.String())
+	}
+
+	patchBody := fmt.Sprintf(`{"collector_config":%s}`, created.CollectorConfig)
+	rec = do(t, h, "PATCH", "/api/v1/devices/mesh1", patchBody)
+	wantStatus(t, rec, http.StatusOK)
+	patched := decode[deviceJSON](t, rec)
+	assertEeroConfigRedacted(t, "patch", patched.CollectorConfig)
+	if strings.Contains(rec.Body.String(), "eero-token-123") || strings.Contains(rec.Body.String(), "enc:v1:") {
+		t.Fatalf("PATCH leaked session_token: %s", rec.Body.String())
+	}
+
+	after, err := st.GetDevice(context.Background(), "mesh1")
+	if err != nil {
+		t.Fatalf("get device after patch: %v", err)
+	}
+	var afterCfg map[string]any
+	if err := json.Unmarshal([]byte(after.CollectorConfig), &afterCfg); err != nil {
+		t.Fatalf("parse config after patch: %v", err)
+	}
+	if afterCfg["session_token"] != encToken {
+		t.Fatalf("redacted PATCH replaced stored session_token: %v", afterCfg["session_token"])
+	}
+	if afterCfg["label"] != "keep-me" {
+		t.Fatalf("unknown config key not preserved: %v", afterCfg["label"])
+	}
+}
+
+func assertEeroConfigRedacted(t *testing.T, op string, raw json.RawMessage) {
+	t.Helper()
+	var cfg map[string]any
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatalf("%s: parse returned config: %v", op, err)
+	}
+	if cfg["session_token"] != redactedValue {
+		t.Fatalf("%s: session_token = %v, want %s", op, cfg["session_token"], redactedValue)
+	}
+	if cfg["network_id"] != "net-1" || cfg["base_url"] != "https://api.example.invalid" || cfg["label"] != "keep-me" {
+		t.Fatalf("%s: non-sensitive config changed: %+v", op, cfg)
+	}
+}
+
 func TestAuth(t *testing.T) {
 	h, st := newTestServer(t, nil)
 

@@ -14,10 +14,9 @@ import (
 // redactedValue replaces credential material in API responses.
 const redactedValue = "***"
 
-// sensitiveConfigKeys are the top-level collector-config fields that are
-// never returned by the API, regardless of collector type (defense in depth:
-// even a future collector type with a "password" field stays redacted).
-var sensitiveConfigKeys = []string{"password", "private_key"}
+// fallbackSensitiveConfigKeys are top-level collector-config fields that are
+// redacted regardless of collector type as defense in depth.
+var fallbackSensitiveConfigKeys = []string{"password", "private_key"}
 
 // deviceJSON is the wire form of a device. CollectorConfig is the parsed
 // config object with credential fields redacted; plaintext or ciphertext,
@@ -42,7 +41,7 @@ func toDeviceJSON(d store.Device) deviceJSON {
 		Vendor:              d.Vendor,
 		Address:             d.Address,
 		CollectorType:       d.CollectorType,
-		CollectorConfig:     redactConfig(d.CollectorConfig),
+		CollectorConfig:     redactConfig(d.CollectorType, d.CollectorConfig),
 		PollIntervalSeconds: d.PollIntervalSeconds,
 		Enabled:             d.Enabled,
 		CreatedAt:           d.CreatedAt.UTC(),
@@ -53,12 +52,12 @@ func toDeviceJSON(d store.Device) deviceJSON {
 // redactConfig returns configJSON with every sensitive top-level field
 // replaced by "***". A config that fails to parse is replaced wholesale with
 // {} rather than risk echoing raw credential bytes.
-func redactConfig(configJSON string) json.RawMessage {
+func redactConfig(collectorType, configJSON string) json.RawMessage {
 	var cfg map[string]any
 	if err := json.Unmarshal([]byte(configJSON), &cfg); err != nil {
 		return json.RawMessage("{}")
 	}
-	for _, key := range sensitiveConfigKeys {
+	for _, key := range redactedConfigKeys(collectorType) {
 		if v, ok := cfg[key].(string); ok && v != "" {
 			cfg[key] = redactedValue
 		}
@@ -68,6 +67,21 @@ func redactConfig(configJSON string) json.RawMessage {
 		return json.RawMessage("{}")
 	}
 	return out
+}
+
+func redactedConfigKeys(collectorType string) []string {
+	keys := append([]string{}, fallbackSensitiveConfigKeys...)
+	seen := make(map[string]bool, len(keys)+4)
+	for _, key := range keys {
+		seen[key] = true
+	}
+	for _, key := range collector.SensitiveFields(collectorType) {
+		if !seen[key] {
+			keys = append(keys, key)
+			seen[key] = true
+		}
+	}
+	return keys
 }
 
 func (s *Server) handleDeviceList(w http.ResponseWriter, r *http.Request) {
@@ -210,7 +224,7 @@ func (s *Server) handleDevicePatch(w http.ResponseWriter, r *http.Request) {
 		d.Enabled = *req.Enabled
 	}
 	if req.CollectorConfig != nil {
-		merged, err := mergeRedactedSecrets(string(req.CollectorConfig), d.CollectorConfig)
+		merged, err := mergeRedactedSecrets(d.CollectorType, string(req.CollectorConfig), d.CollectorConfig)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "bad_request", "invalid collector_config: "+err.Error())
 			return
@@ -274,7 +288,7 @@ func (s *Server) encryptConfig(w http.ResponseWriter, collectorType, configJSON 
 // value is the redaction sentinel ("***") replaced by the stored value from
 // oldConfig. This lets clients PATCH back a config object they previously
 // Got without wiping credentials.
-func mergeRedactedSecrets(newConfig, oldConfig string) (string, error) {
+func mergeRedactedSecrets(collectorType, newConfig, oldConfig string) (string, error) {
 	var newCfg map[string]any
 	if err := json.Unmarshal([]byte(newConfig), &newCfg); err != nil {
 		return "", err
@@ -284,7 +298,7 @@ func mergeRedactedSecrets(newConfig, oldConfig string) (string, error) {
 		// Old config unparsable: nothing to merge from.
 		oldCfg = nil
 	}
-	for _, key := range sensitiveConfigKeys {
+	for _, key := range redactedConfigKeys(collectorType) {
 		if v, ok := newCfg[key].(string); ok && v == redactedValue {
 			if old, ok := oldCfg[key].(string); ok {
 				newCfg[key] = old

@@ -519,3 +519,15 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   only 198.18.0.0/15 addresses. The existing eero node golden was updated for
   the new availability title, and the reservation-forward golden pins the high
   retained-forward title.
+
+## 2026-08-08 - Public secret and report-path redaction
+
+- API credential redaction now uses the collector package's sensitive-field
+  registry, with the existing `password`/`private_key` fallback kept as defense
+  in depth. This keeps eero `session_token` encryption, create/get/list
+  redaction, and redacted PATCH merge behavior on the same source of truth.
+- Webhook JSON keeps the existing `report_dir` field for compatibility, but
+  the value is now the stable public reference `change-<id>` instead of
+  `store.Change.ReportDir`'s server-local filesystem path. Discord embeds no
+  longer include report paths or report-directory basenames; they show the
+  numeric Change ID field instead.

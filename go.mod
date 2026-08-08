@@ -1,4 +1,4 @@
-module github.com/solomonneas/cutsheet
+module github.com/lidless-labs/cutsheet
 
 go 1.25.0
 

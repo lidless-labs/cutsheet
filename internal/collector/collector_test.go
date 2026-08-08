@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/solomonneas/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/secrets"
 )
 
 func TestNew(t *testing.T) {

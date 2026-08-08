@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/solomonneas/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/secrets"
 )
 
 // Collector fetches the current configuration of one device.

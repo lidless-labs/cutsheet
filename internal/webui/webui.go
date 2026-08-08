@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/solomonneas/cutsheet/web"
+	"github.com/lidless-labs/cutsheet/web"
 )
 
 // Root composes the full server handler: /api/ and /healthz go to the REST

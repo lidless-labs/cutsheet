@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/solomonneas/cutsheet/internal/api"
-	"github.com/solomonneas/cutsheet/internal/notify"
-	"github.com/solomonneas/cutsheet/internal/pipeline"
-	"github.com/solomonneas/cutsheet/internal/secrets"
-	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/internal/api"
+	"github.com/lidless-labs/cutsheet/internal/notify"
+	"github.com/lidless-labs/cutsheet/internal/pipeline"
+	"github.com/lidless-labs/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
 func TestParseDeviceAdd(t *testing.T) {

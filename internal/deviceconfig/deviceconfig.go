@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/solomonneas/cutsheet/internal/collector"
-	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/internal/collector"
+	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
 var idPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)

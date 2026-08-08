@@ -3,7 +3,7 @@ package netgraph
 import (
 	"testing"
 
-	"github.com/solomonneas/cutsheet/pkg/configdiff"
+	"github.com/lidless-labs/cutsheet/pkg/configdiff"
 )
 
 func contains(ids []string, want string) bool {

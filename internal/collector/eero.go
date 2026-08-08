@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/solomonneas/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/secrets"
 )
 
 // eeroHTTPTimeout bounds each HTTP request to the eero cloud API. The fetch

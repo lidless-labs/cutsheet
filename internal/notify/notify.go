@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
 // Event is the notification payload for one recorded change. Field names are

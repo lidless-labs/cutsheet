@@ -19,8 +19,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/solomonneas/cutsheet/internal/secrets"
-	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
 // SnapshotNow triggers an immediate collect+save+analyze for one device and

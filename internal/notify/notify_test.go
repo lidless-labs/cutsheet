@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
 func testEvent() Event {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/solomonneas/cutsheet/internal/store"
+	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
 func TestValidID(t *testing.T) {

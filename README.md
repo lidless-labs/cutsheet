@@ -294,16 +294,23 @@ review with two config files and no server:
 ```bash
 go build -o cutsheet-cli ./cmd/cutsheet-cli
 cutsheet-cli explain --before before.cfg --after after.cfg --vendor auto --out ./reports/change-001
+cutsheet-cli preflight --current running.cfg --candidate proposed.cfg --vendor auto
+cutsheet-cli preflight --current running.cfg --candidate proposed.cfg --vendor auto --json
 ```
 
 | Flag | Meaning |
 | --- | --- |
-| `--before` | Path to the before config |
-| `--after` | Path to the after config |
+| `--before` / `--after` | Paths for `explain` (before and after configs) |
+| `--current` / `--candidate` | Paths for `preflight` (live config vs proposed) |
 | `--vendor` | Parser mode from the table above, or `auto` |
-| `--out` | Output directory for the report bundle |
+| `--out` | Output directory for the `explain` report bundle |
+| `--json` | For `preflight`, emit the full analysis as JSON on stdout |
 
-The bundle contains `diff-analysis.json` (stable schema v1.1),
+`explain` writes a report bundle under `--out`. `preflight` prints risk
+findings and rollback confidence (or JSON with `--json`) and does not write
+a report or touch any store or git history.
+
+The `explain` bundle contains `diff-analysis.json` (stable schema v1.1),
 `change-summary.md`, `risk-analysis.md`, `touched-objects.md`,
 `rollback-plan.md`, `validation-plan.md`, `operator-checklist.md`,
 `stakeholder-brief.md`, and `report.html` for browser review.
@@ -361,8 +368,7 @@ See [SECURITY.md](SECURITY.md) for the vulnerability reporting process.
   configs, audit evidence export.
 - AWS network state (security groups, route tables, NACLs) in the same
   change timeline as your switches and firewalls.
-- Remote-site collector daemons (outbound-only, MSP-friendly) and
-  syslog-triggered instant snapshots.
+- Remote-site collector daemons (outbound-only, MSP-friendly).
 
 ## Development
 
@@ -380,8 +386,6 @@ lands easily.
 ## License
 
 MIT. See [LICENSE](LICENSE).
-</content>
-</invoke>
 
 ---
 

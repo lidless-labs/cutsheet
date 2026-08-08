@@ -76,8 +76,9 @@ The first explanation provider is offline and deterministic. A future
 provider can use the same `ExplanationProvider` interface, but deterministic
 analysis remains the source of truth.
 
-`configdiff.Explain()` is a pure function: no side effects beyond the output
-directory, no network calls. The JSON schema
+`configdiff.AnalyzeContent()` is the pure in-memory API: no file I/O and no
+network calls. `configdiff.Explain()` reads the before/after configs from
+disk and writes the report bundle to the output directory. The JSON schema
 (`schema/diff-analysis-v1.schema.json`) is a stable contract.
 
 ## Current Limitations

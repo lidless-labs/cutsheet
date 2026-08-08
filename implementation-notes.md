@@ -448,10 +448,9 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   therefore still reports `dev` unless VERSION is exported; acceptable until
   release builds go through make. Seeded CHANGELOG.md (Keep a Changelog)
   with an Unreleased section covering everything shipped so far.
-- Deliberately NOT done: eero collector form in the web UI Devices page
-  (Devices.tsx only knows file/ssh/unifi); that is a feature, not an audit
-  doc fix. The README screenshot TODO (INFO finding) was also left as is,
-  not in scope.
+- The README screenshot TODO (INFO finding) was left as is, not in scope.
+  (Earlier note claimed the Devices page lacked an eero collector form.
+  That is stale. Devices.tsx ships file/ssh/unifi/eero.)
 
 ## 2026-07-09 - Syslog-triggered snapshots
 
@@ -531,3 +530,16 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   `store.Change.ReportDir`'s server-local filesystem path. Discord embeds no
   longer include report paths or report-directory basenames; they show the
   numeric Change ID field instead.
+
+## 2026-08-08 - Documentation drift (issue 25)
+
+- Trivial documentation edit. GraphTrail skipped.
+- README: removed stray `</content>` / `</invoke>` markers after the License
+  section, dropped shipped syslog-triggered snapshots from the Roadmap
+  (feature is documented under Syslog-triggered snapshots), and documented
+  `cutsheet-cli preflight` next to `explain`.
+- `docs/parsers.md`: purity contract corrected to `AnalyzeContent()` (pure
+  in-memory). `Explain()` reads configs and writes the report bundle.
+- Corrected the 2026-07-07 note that claimed Devices.tsx lacked an eero form.
+  The page already offers collector type `eero` with session token and
+  network ID fields.

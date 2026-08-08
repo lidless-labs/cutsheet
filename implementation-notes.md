@@ -651,3 +651,26 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   surface that pipeline error before the blocker is replaced with a directory
   and the identical retry succeeds. Test-only; GraphTrail impact unchanged
   (`changed_symbols=0`, `edge_churn=0`).
+
+## 2026-08-08 - Report preview blob URL lifecycle (#16)
+
+- **Bug:** `ChangeDetailPage`'s report-preview effect listed `reportUrl` in its
+  dependency array. `setReportUrl(url)` re-ran the effect; cleanup called
+  `URL.revokeObjectURL` on the URL the iframe had just been given. The early
+  return on `reportUrl` stopped a refetch loop but not the revoke.
+- **Follow-on race:** the report effect originally depended on
+  `[tab, change, toast]` only. On `/changes/:id` transition, the id dispose
+  effect could revoke without cancelling the prior fetch; a late success could
+  create/adopt a stale blob URL and block the next load.
+- **Fix:** `createReportPreviewController` owns async load/cancel plus
+  adopt/dispose. Soft cleanup abandons in-flight work without revoking a live
+  iframe URL; `dispose()` abandons and revokes (route leave / unmount). Load
+  requires `String(changeId) === routeId`. `id` is in the report effect deps.
+  Late success/failure from an abandoned fetch cannot adopt or toast.
+  `reportUrl` stays out of the effect dependency list.
+- **Test:** deferred-promise Node tests exercise the same controller the page
+  calls (route transition, overlapping loads, late success/failure,
+  StrictMode setup-cleanup-setup, exact revoke counts), plus adopt/dispose
+  unit coverage. Runner: `node --experimental-strip-types --test
+  "src/**/*.test.ts"` (`npm --prefix web test`). Wired into `./scripts/verify`
+  and the CI `web` job so the regression is not orphaned.

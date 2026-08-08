@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   apiGet,
@@ -11,6 +11,7 @@ import {
   type Severity,
 } from "../api";
 import { SeverityBadge } from "../components/SeverityBadge";
+import { createReportPreviewController } from "../reportPreviewBlob";
 import { useToast } from "../toast";
 import { formatBytes, formatTimestamp, timeAgo } from "../util";
 
@@ -35,6 +36,13 @@ export default function ChangeDetailPage() {
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
+  // Owns load/cancel + revoke: setReportUrl rerenders must not revoke;
+  // id change / unmount must cancel in-flight work and dispose the live URL.
+  const preview = useRef(
+    createReportPreviewController({
+      fetchReport: (changeId) => fetchReportBlob(changeId, "report.html"),
+    }),
+  );
 
   useEffect(() => {
     setChange(null);
@@ -58,34 +66,30 @@ export default function ChangeDetailPage() {
 
   // The HTML report is fetched with the bearer header and shown via a blob
   // URL, because an <iframe src> pointed straight at the API cannot carry
-  // Authorization.
+  // Authorization. reportUrl is intentionally not a dependency: listing it
+  // re-ran this effect after setReportUrl and the cleanup revoked the live URL.
+  // `id` is in the dependency list so route transitions soft-cancel the old
+  // load before a stale fetch can create/adopt a URL.
   useEffect(() => {
-    if (tab !== "report" || !change?.has_report || reportUrl) {
+    if (tab !== "report" || !change?.has_report || preview.current.current()) {
       return;
     }
-    let revoked = false;
-    let url: string | null = null;
-    fetchReportBlob(change.id, "report.html")
-      .then((blob) => {
-        url = URL.createObjectURL(new Blob([blob], { type: "text/html" }));
-        if (!revoked) {
-          setReportUrl(url);
-        }
-      })
-      .catch((err) => toast.push("error", `Load report failed: ${err.message}`));
-    return () => {
-      revoked = true;
-      if (url) {
-        URL.revokeObjectURL(url);
-      }
-    };
-  }, [tab, change, reportUrl, toast]);
+    return preview.current.load({
+      routeId: id,
+      changeId: change.id,
+      onAdopt: setReportUrl,
+      onError: (message) => toast.push("error", `Load report failed: ${message}`),
+    });
+  }, [id, tab, change, toast]);
 
-  // Reset the blob URL when navigating between changes.
+  // Reset preview state when navigating between changes; cancel + revoke on leave/unmount.
   useEffect(() => {
     setReportUrl(null);
     setTab("findings");
     setReports([]);
+    return () => {
+      preview.current.dispose();
+    };
   }, [id]);
 
   const findings: MergedFinding[] = useMemo(() => {

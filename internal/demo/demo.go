@@ -179,6 +179,9 @@ func snapshot(ctx context.Context, st *store.Store, snaps *snapshots.SnapshotSto
 	if err != nil {
 		return store.Change{}, fmt.Errorf("analyze change for %s: %w", deviceID, err)
 	}
+	if err := snaps.MarkProcessed(dev.ID, result.CommitHash); err != nil {
+		return store.Change{}, fmt.Errorf("mark snapshot processed for %s: %w", deviceID, err)
+	}
 	return change, nil
 }
 

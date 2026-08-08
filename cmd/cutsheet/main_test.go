@@ -12,13 +12,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/lidless-labs/cutsheet/internal/api"
 	"github.com/lidless-labs/cutsheet/internal/notify"
 	"github.com/lidless-labs/cutsheet/internal/pipeline"
+	"github.com/lidless-labs/cutsheet/internal/scheduler"
 	"github.com/lidless-labs/cutsheet/internal/secrets"
+	"github.com/lidless-labs/cutsheet/internal/snapshots"
 	"github.com/lidless-labs/cutsheet/internal/store"
 )
 
@@ -581,6 +584,263 @@ func TestSnapshotNowEndToEnd(t *testing.T) {
 	rec = get(fmt.Sprintf("/api/v1/changes/%d/reports/report.html", changed.Change.ID))
 	if rec.Code != 200 || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html") {
 		t.Fatalf("report.html: %d %q", rec.Code, rec.Header().Get("Content-Type"))
+	}
+}
+
+func waitForCond(t *testing.T, timeout time.Duration, cond func() bool) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return cond()
+}
+
+// plantReportsNotDir replaces reportsDir with a regular file so nested
+// MkdirAll(reportsDir/<device>/...) fails with ENOTDIR. Root-stable unlike
+// chmod 0555 on a directory.
+func plantReportsNotDir(t *testing.T, reportsDir string) {
+	t.Helper()
+	if err := os.RemoveAll(reportsDir); err != nil {
+		t.Fatalf("remove reports path: %v", err)
+	}
+	if err := os.WriteFile(reportsDir, []byte("not-a-directory\n"), 0o600); err != nil {
+		t.Fatalf("plant reports file: %v", err)
+	}
+}
+
+// restoreReportsDir removes a planted reports blocker and recreates a writable
+// reports directory so a subsequent HandleChange can succeed.
+func restoreReportsDir(t *testing.T, reportsDir string) {
+	t.Helper()
+	if err := os.RemoveAll(reportsDir); err != nil {
+		t.Fatalf("remove reports blocker: %v", err)
+	}
+	if err := os.MkdirAll(reportsDir, 0o755); err != nil {
+		t.Fatalf("restore reports dir: %v", err)
+	}
+}
+
+// TestSchedulerRetriesAfterRealHandleChangeFailure drives the production
+// runServe wiring: scheduler → Save → makeProcessChange → Pipeline.HandleChange.
+// A real HandleChange failure (reports root is a regular file → ENOTDIR on
+// nested MkdirAll) must leave the processing cursor behind HEAD so the next
+// identical poll retries and records.
+func TestSchedulerRetriesAfterRealHandleChangeFailure(t *testing.T) {
+	t.Setenv(secrets.EnvKey, "")
+	dataDir := t.TempDir()
+	st, snaps, err := openDataDir(dataDir)
+	if err != nil {
+		t.Fatalf("openDataDir: %v", err)
+	}
+	defer st.Close()
+
+	cfgPath := filepath.Join(dataDir, "gw1.cfg")
+	before := readFixture(t, "sample-before.cfg")
+	after := readFixture(t, "sample-after.cfg")
+	if err := os.WriteFile(cfgPath, before, 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	device := store.Device{
+		ID: "gw1", Name: "gw1", Vendor: "auto",
+		CollectorType:       "file",
+		CollectorConfig:     `{"path":"` + cfgPath + `"}`,
+		PollIntervalSeconds: 1,
+		Enabled:             true,
+	}
+	if err := st.CreateDevice(context.Background(), device); err != nil {
+		t.Fatalf("CreateDevice: %v", err)
+	}
+
+	reportsDir := filepath.Join(dataDir, "reports")
+	if err := os.MkdirAll(reportsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reports: %v", err)
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe := pipeline.New(st, reportsDir, logger)
+	fanout := &notify.Fanout{Logger: logger}
+	processChange := makeProcessChange(snaps, pipe, fanout, logger)
+	var (
+		errMu   sync.Mutex
+		lastErr error
+	)
+	handler := func(ctx context.Context, d store.Device, result snapshots.SaveResult) {
+		// Mirror runServe: failures are logged; MarkProcessed is not called.
+		_, err := processChange(ctx, d, result, "")
+		errMu.Lock()
+		lastErr = err
+		errMu.Unlock()
+	}
+
+	sched := scheduler.New(st, snaps, handler, scheduler.Options{
+		Logger:   logger,
+		Interval: func(store.Device) time.Duration { return 50 * time.Millisecond },
+	})
+	if err := sched.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	countChanges := func() int {
+		changes, err := st.ListChanges(context.Background(), store.ListChangesOptions{DeviceID: device.ID})
+		if err != nil {
+			t.Fatalf("ListChanges: %v", err)
+		}
+		return len(changes)
+	}
+	if !waitForCond(t, 5*time.Second, func() bool { return countChanges() == 1 }) {
+		t.Fatalf("initial snapshot: %d changes, want 1", countChanges())
+	}
+
+	// Real Pipeline.HandleChange failure: plant reportsDir as a regular file so
+	// MkdirAll(reportsDir/<device>/...) fails with ENOTDIR. Root-stable unlike
+	// chmod 0555, which root can write through.
+	plantReportsNotDir(t, reportsDir)
+	if err := os.WriteFile(cfgPath, after, 0o600); err != nil {
+		t.Fatalf("rewrite fixture: %v", err)
+	}
+	// Allow several poll attempts while HandleChange fails; require the
+	// intended not-a-directory pipeline error at least once.
+	deadline := time.Now().Add(1500 * time.Millisecond)
+	sawNotDir := false
+	for time.Now().Before(deadline) {
+		if countChanges() != 1 {
+			t.Fatalf("during HandleChange failure: %d changes, want 1", countChanges())
+		}
+		errMu.Lock()
+		errText := ""
+		if lastErr != nil {
+			errText = lastErr.Error()
+		}
+		errMu.Unlock()
+		if strings.Contains(errText, "not a directory") {
+			sawNotDir = true
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !sawNotDir {
+		errMu.Lock()
+		got := lastErr
+		errMu.Unlock()
+		t.Fatalf("expected HandleChange error containing %q, lastErr=%v", "not a directory", got)
+	}
+
+	restoreReportsDir(t, reportsDir)
+	if !waitForCond(t, 5*time.Second, func() bool { return countChanges() == 2 }) {
+		t.Fatalf("retry after HandleChange failure: %d changes, want 2", countChanges())
+	}
+
+	changes, err := st.ListChanges(context.Background(), store.ListChangesOptions{DeviceID: device.ID})
+	if err != nil {
+		t.Fatalf("ListChanges: %v", err)
+	}
+	analyzed := changes[0]
+	if analyzed.PrevCommitHash == "" || analyzed.MaxSeverity == "none" {
+		t.Fatalf("retried analysis: %+v", analyzed)
+	}
+
+	stable := countChanges()
+	time.Sleep(300 * time.Millisecond)
+	if countChanges() != stable {
+		t.Fatalf("identical polls kept recording: %d → %d", stable, countChanges())
+	}
+}
+
+// TestSnapshotNowRetriesAfterHandleChangeFailure covers the on-demand path
+// through makeSnapshotNow + makeProcessChange: a failed analyzed snapshot
+// (reports root planted as a file → ENOTDIR) must leave work retryable for an
+// identical subsequent POST after the blocker is replaced with a directory.
+func TestSnapshotNowRetriesAfterHandleChangeFailure(t *testing.T) {
+	t.Setenv(secrets.EnvKey, "")
+	dataDir := t.TempDir()
+	st, snaps, err := openDataDir(dataDir)
+	if err != nil {
+		t.Fatalf("openDataDir: %v", err)
+	}
+	defer st.Close()
+
+	cfgPath := filepath.Join(dataDir, "device.cfg")
+	if err := os.WriteFile(cfgPath, readFixture(t, "sample-before.cfg"), 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	device := store.Device{
+		ID: "gw1", Name: "gw1", Vendor: "auto",
+		CollectorType:   "file",
+		CollectorConfig: `{"path":"` + cfgPath + `"}`,
+	}
+	if err := st.CreateDevice(context.Background(), device); err != nil {
+		t.Fatalf("CreateDevice: %v", err)
+	}
+
+	reportsDir := filepath.Join(dataDir, "reports")
+	if err := os.MkdirAll(reportsDir, 0o755); err != nil {
+		t.Fatalf("mkdir reports: %v", err)
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe := pipeline.New(st, reportsDir, logger)
+	fanout := &notify.Fanout{Logger: logger}
+	processChange := makeProcessChange(snaps, pipe, fanout, logger)
+	handler := api.New(api.Config{
+		Store: st,
+		SnapshotNow: func() api.SnapshotNow {
+			snapshotNow := makeSnapshotNow(st, snaps, nil, processChange)
+			// Mirror runServe: the HTTP path has no syslog attribution.
+			return func(ctx context.Context, deviceID string) (*store.Change, bool, error) {
+				return snapshotNow(ctx, deviceID, "")
+			}
+		}(),
+		Logger: logger,
+	})
+	post := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest("POST", "/api/v1/devices/gw1/snapshot", nil)
+		req.RemoteAddr = "127.0.0.1:50000"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+
+	rec := post()
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"summary":"initial snapshot"`) {
+		t.Fatalf("first snapshot: %d %s", rec.Code, rec.Body.String())
+	}
+
+	plantReportsNotDir(t, reportsDir)
+	if err := os.WriteFile(cfgPath, readFixture(t, "sample-after.cfg"), 0o600); err != nil {
+		t.Fatalf("write changed fixture: %v", err)
+	}
+	rec = post()
+	if rec.Code == 200 {
+		t.Fatalf("expected HandleChange failure, got success: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "not a directory") {
+		t.Fatalf("expected HandleChange error containing %q, got: %s", "not a directory", rec.Body.String())
+	}
+
+	restoreReportsDir(t, reportsDir)
+	rec = post()
+	if rec.Code != 200 {
+		t.Fatalf("identical retry after failure: %d %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Changed bool `json:"changed"`
+		Change  struct {
+			MaxSeverity string `json:"max_severity"`
+			HasReport   bool   `json:"has_report"`
+		} `json:"change"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode retry: %v", err)
+	}
+	if !body.Changed || !body.Change.HasReport || body.Change.MaxSeverity == "none" {
+		t.Fatalf("retry body: %s", rec.Body.String())
+	}
+
+	rec = post()
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"changed":false`) {
+		t.Fatalf("post-success unchanged: %d %s", rec.Code, rec.Body.String())
 	}
 }
 

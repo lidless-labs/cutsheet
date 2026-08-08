@@ -88,7 +88,13 @@ func newTestScheduler(t *testing.T, lister DeviceLister, rec *changeRecorder) *S
 	if err != nil {
 		t.Fatalf("snapshots.Open: %v", err)
 	}
-	sched := New(lister, snaps, rec.handler, Options{
+	handler := func(ctx context.Context, device store.Device, result snapshots.SaveResult) {
+		rec.handler(ctx, device, result)
+		if err := snaps.MarkProcessed(device.ID, result.CommitHash); err != nil {
+			t.Errorf("MarkProcessed: %v", err)
+		}
+	}
+	sched := New(lister, snaps, handler, Options{
 		Interval: func(d store.Device) time.Duration { return 50 * time.Millisecond },
 	})
 	return sched
@@ -269,5 +275,107 @@ func TestRefreshBeforeStart(t *testing.T) {
 	sched := newTestScheduler(t, &fakeLister{}, rec)
 	if err := sched.Refresh(); err == nil {
 		t.Fatal("Refresh before Start: want error, got nil")
+	}
+}
+
+// TestSchedulerReinvokesHandlerWhileUnprocessed covers the scheduler poll
+// contract with SnapshotStore: skipping MarkProcessed leaves HEAD ahead of the
+// processing cursor so identical polls re-enter the handler. Real
+// Pipeline.HandleChange failure through makeProcessChange is covered in
+// cmd/cutsheet.TestSchedulerRetriesAfterRealHandleChangeFailure.
+func TestSchedulerReinvokesHandlerWhileUnprocessed(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "gw1.cfg")
+	before := []byte("hostname gw1\n")
+	after := []byte("hostname gw1\nntp server 192.0.2.10\n")
+	if err := os.WriteFile(cfgPath, before, 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	lister := &fakeLister{}
+	lister.set(fileDevice("gw1", cfgPath, 1, true))
+
+	snaps, err := snapshots.Open(filepath.Join(t.TempDir(), "snapshots"))
+	if err != nil {
+		t.Fatalf("snapshots.Open: %v", err)
+	}
+
+	var mu sync.Mutex
+	var calls []snapshots.SaveResult
+	process := true
+	handler := func(ctx context.Context, device store.Device, result snapshots.SaveResult) {
+		mu.Lock()
+		defer mu.Unlock()
+		calls = append(calls, result)
+		if !process {
+			return
+		}
+		if err := snaps.MarkProcessed(device.ID, result.CommitHash); err != nil {
+			t.Errorf("MarkProcessed: %v", err)
+		}
+	}
+
+	sched := New(lister, snaps, handler, Options{
+		Interval: func(d store.Device) time.Duration { return 50 * time.Millisecond },
+	})
+	if err := sched.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	if !waitFor(t, 3*time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(calls) == 1
+	}) {
+		mu.Lock()
+		n := len(calls)
+		mu.Unlock()
+		t.Fatalf("initial change: handler fired %d times, want 1", n)
+	}
+
+	mu.Lock()
+	process = false
+	mu.Unlock()
+	if err := os.WriteFile(cfgPath, after, 0o600); err != nil {
+		t.Fatalf("rewrite fixture: %v", err)
+	}
+	if !waitFor(t, 3*time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(calls) >= 3
+	}) {
+		mu.Lock()
+		n := len(calls)
+		mu.Unlock()
+		t.Fatalf("unprocessed identical polls: handler fired %d times, want >= 3", n)
+	}
+
+	mu.Lock()
+	second, third := calls[1], calls[2]
+	mu.Unlock()
+	if second.CommitHash != third.CommitHash {
+		t.Fatalf("retry CommitHash = %q, want %q", third.CommitHash, second.CommitHash)
+	}
+	if string(third.PrevContent) != string(before) {
+		t.Fatalf("retry PrevContent = %q, want %q", third.PrevContent, before)
+	}
+
+	mu.Lock()
+	process = true
+	mu.Unlock()
+	stableAt := 0
+	if !waitFor(t, 3*time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		if len(calls) < 3 {
+			return false
+		}
+		if stableAt == 0 {
+			stableAt = len(calls)
+			return false
+		}
+		return len(calls) == stableAt
+	}) {
+		t.Fatal("handler kept firing after successful processing")
 	}
 }

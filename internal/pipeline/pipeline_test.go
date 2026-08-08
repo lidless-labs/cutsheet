@@ -302,6 +302,10 @@ func TestEndToEndPollAnalyzeRecord(t *testing.T) {
 		}
 		if _, err := p.HandleChange(ctx, d, result, current, ""); err != nil {
 			t.Errorf("HandleChange: %v", err)
+			return
+		}
+		if err := snaps.MarkProcessed(d.ID, result.CommitHash); err != nil {
+			t.Errorf("MarkProcessed: %v", err)
 		}
 	}
 	sched := scheduler.New(st, snaps, handler, scheduler.Options{

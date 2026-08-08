@@ -18,7 +18,8 @@ import (
 )
 
 // Event is the notification payload for one recorded change. Field names are
-// the generic webhook's JSON contract.
+// the generic webhook's JSON contract. ReportDir is intentionally a public
+// change reference, not store.Change.ReportDir's server-local filesystem path.
 type Event struct {
 	DeviceID      string    `json:"device_id"`
 	DeviceName    string    `json:"device_name"`
@@ -32,7 +33,7 @@ type Event struct {
 
 // EventFromChange builds the notification event for a recorded change.
 func EventFromChange(device store.Device, change store.Change) Event {
-	return Event{
+	return publicEvent(Event{
 		DeviceID:      device.ID,
 		DeviceName:    device.Name,
 		ChangeID:      change.ID,
@@ -41,7 +42,19 @@ func EventFromChange(device store.Device, change store.Change) Event {
 		MaxSeverity:   change.MaxSeverity,
 		FindingsCount: len(change.Findings),
 		ReportDir:     change.ReportDir,
+	})
+}
+
+func publicReportRef(changeID int64) string {
+	if changeID <= 0 {
+		return ""
 	}
+	return "change-" + strconv.FormatInt(changeID, 10)
+}
+
+func publicEvent(ev Event) Event {
+	ev.ReportDir = publicReportRef(ev.ChangeID)
+	return ev
 }
 
 // Notifier delivers one event to one sink.
@@ -67,6 +80,7 @@ type Webhook struct {
 
 // Notify implements Notifier.
 func (w *Webhook) Notify(ctx context.Context, ev Event) error {
+	ev = publicEvent(ev)
 	body, err := json.Marshal(ev)
 	if err != nil {
 		return fmt.Errorf("marshal webhook payload: %w", err)
@@ -119,9 +133,9 @@ func severityColor(severity string) int {
 func (d *Discord) Notify(ctx context.Context, ev Event) error {
 	// Discord rejects embeds with empty field values, and initial snapshots
 	// have no report bundle.
-	reportDir := ev.ReportDir
-	if reportDir == "" {
-		reportDir = "(none)"
+	changeID := "(none)"
+	if ev.ChangeID > 0 {
+		changeID = strconv.FormatInt(ev.ChangeID, 10)
 	}
 	msg := discordMessage{Embeds: []discordEmbed{{
 		Title:       "Config change: " + ev.DeviceName,
@@ -130,7 +144,7 @@ func (d *Discord) Notify(ctx context.Context, ev Event) error {
 		Fields: []discordEmbedField{
 			{Name: "Severity", Value: ev.MaxSeverity, Inline: true},
 			{Name: "Findings", Value: strconv.Itoa(ev.FindingsCount), Inline: true},
-			{Name: "Report dir", Value: reportDir},
+			{Name: "Change ID", Value: changeID},
 		},
 		Timestamp: ev.DetectedAt.UTC().Format(time.RFC3339),
 	}}}

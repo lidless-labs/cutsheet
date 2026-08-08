@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -40,6 +41,7 @@ func TestEventFromChange(t *testing.T) {
 	}
 	got := EventFromChange(device, change)
 	want := testEvent()
+	want.ReportDir = "change-42"
 	if got != want {
 		t.Fatalf("EventFromChange:\n got %+v\nwant %+v", got, want)
 	}
@@ -72,7 +74,7 @@ func TestWebhookPayload(t *testing.T) {
 		"summary":        "3 findings (1 high) - 5 blocks changed",
 		"max_severity":   "high",
 		"findings_count": float64(3),
-		"report_dir":     "/data/reports/edge-gw1/20260609-123000-abcd1234",
+		"report_dir":     "change-42",
 	}
 	for key, wantVal := range want {
 		if gotBody[key] != wantVal {
@@ -82,6 +84,7 @@ func TestWebhookPayload(t *testing.T) {
 	if len(gotBody) != len(want) {
 		t.Errorf("payload has %d keys, want %d: %v", len(gotBody), len(want), gotBody)
 	}
+	assertNoReportPathDisclosure(t, gotBody)
 }
 
 func TestWebhookRetriesOn5xx(t *testing.T) {
@@ -206,9 +209,9 @@ func TestDiscordEmbed(t *testing.T) {
 		t.Errorf("timestamp = %q", em.Timestamp)
 	}
 	wantFields := map[string]string{
-		"Severity":   "high",
-		"Findings":   "3",
-		"Report dir": "/data/reports/edge-gw1/20260609-123000-abcd1234",
+		"Severity":  "high",
+		"Findings":  "3",
+		"Change ID": "42",
 	}
 	if len(em.Fields) != len(wantFields) {
 		t.Fatalf("fields: got %d, want %d: %+v", len(em.Fields), len(wantFields), em.Fields)
@@ -218,6 +221,7 @@ func TestDiscordEmbed(t *testing.T) {
 			t.Errorf("field %q = %q, want %q", f.Name, f.Value, want)
 		}
 	}
+	assertNoReportPathDisclosure(t, got)
 }
 
 func TestDiscordColorBySeverity(t *testing.T) {
@@ -272,8 +276,25 @@ func TestDiscordEmptyReportDir(t *testing.T) {
 		t.Fatalf("Notify: %v", err)
 	}
 	for _, f := range got.Embeds[0].Fields {
-		if f.Name == "Report dir" && f.Value == "" {
-			t.Error("Report dir field has empty value; Discord rejects empty embed field values")
+		if f.Value == "" {
+			t.Errorf("%s field has empty value; Discord rejects empty embed field values", f.Name)
+		}
+	}
+}
+
+func assertNoReportPathDisclosure(t *testing.T, payload any) {
+	t.Helper()
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	for _, forbidden := range []string{
+		"/data/reports",
+		"edge-gw1/20260609-123000-abcd1234",
+		"20260609-123000-abcd1234",
+	} {
+		if strings.Contains(string(body), forbidden) {
+			t.Fatalf("payload disclosed report path detail %q: %s", forbidden, body)
 		}
 	}
 }

@@ -40,6 +40,16 @@ var sensitiveFields = map[string][]string{
 	"eero":  {"session_token"},
 }
 
+// SensitiveFields returns a copy of the collector type's top-level config
+// fields that hold credentials. Callers use this to keep API redaction and
+// PATCH merge behavior aligned with the encryption boundary.
+func SensitiveFields(collectorType string) []string {
+	fields := sensitiveFields[collectorType]
+	out := make([]string, len(fields))
+	copy(out, fields)
+	return out
+}
+
 // New builds a collector of the given type from its JSON config. box supplies
 // decryption for encrypted credential fields and may be nil for
 // validation-only construction.

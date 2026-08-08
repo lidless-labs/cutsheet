@@ -558,3 +558,22 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   prefix. CI runs that package explicitly; `./scripts/verify` covers it via
   `go test ./...`. The legacy path constant is assembled from parts so a
   bulk rewrite cannot neutralize the guard.
+
+## 2026-08-08 - Undefined-but-referenced objects (issue 21)
+
+- Added a deterministic cross-check in `pkg/configdiff` that compares
+  interface-applied ACL, route-map, and prefix-list references against
+  defined objects in the before/after block sets. Findings emit through the
+  existing `riskFindings` → `add()` path (high / `undefined_reference`), so
+  persistence, API, summaries, notifications, and HTML/markdown reports pick
+  them up without new schema fields.
+- Cisco forms covered: `ip access-group NAME|NUM in|out`,
+  `ip policy route-map NAME`, and `match ip|ipv6 address prefix-list NAME`
+  inside a route-map that is applied to an interface. Definitions recognized
+  via existing ACL blocks plus new `route-map` / `prefix-list` classifyLine
+  kinds. EdgeOS/VyOS equivalent: `set interfaces … firewall in|out|local name`
+  checked against `set firewall name` / `ipv6-name` ACL blocks.
+- Diff-aware silence rules: no finding when the object is defined, when the
+  reference was removed, or when the same dangling key already existed in the
+  before state. Names match case-insensitively. Detail/evidence ordering is
+  sorted for stable RISK-* IDs.

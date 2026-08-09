@@ -456,8 +456,9 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
 
 - Added `internal/syslogtrigger` as a stdlib-only UDP listener that matches
   packet sender IPs to enabled devices, then calls the same `makeSnapshotNow`
-  path as the REST API. It does not parse syslog message bodies; the packet is
-  only a hint to re-read the full config.
+  path as the REST API. Originally the packet body was ignored and used only
+  as a hint to re-read the full config; issue 22 later added optional
+  username extraction from recognized audit events (see 2026-08-09 note).
 - Matching sources come from top-level `collector_config.syslog_source` for
   any collector and from SSH `collector_config.host` for SSH devices. The
   existing collector config validation already ignores unknown JSON fields, so
@@ -577,3 +578,21 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   reference was removed, or when the same dangling key already existed in the
   before state. Names match case-insensitively. Detail/evidence ordering is
   sorted for stable RISK-* IDs.
+
+## 2026-08-09 - Syslog change attribution (issue 22)
+
+- Extended `internal/syslogtrigger` to parse recognized config-change audit
+  bodies for a device username while keeping the existing trigger semantics:
+  any packet from a known source still schedules a snapshot. Unrecognized
+  bodies leave attribution empty (graceful degradation).
+- Patterns follow Oxidized's syslog.rb coverage for Cisco-family CONFIG_I
+  (IOS / stackwise / IOS XR / EOS / NX-OS) and Junos `UI_COMMIT`. Parsing is
+  regex-based rather than token-index based so PRI/timestamp prefixes do not
+  shift the username.
+- Debounce keeps the latest non-empty username seen in the window so a noise
+  packet that arms the timer can still pick up a later audit event.
+- Attribution is persisted as `changes.changed_by` (migration 0003), exposed
+  on the changes API as `changed_by`, shown in the timeline and change
+  detail when non-empty, and included in webhook JSON / Discord embeds
+  (Discord omits the field when empty because Discord rejects blank embed
+  values). Poll and REST snapshot paths pass an empty string.

@@ -500,10 +500,13 @@ func TestSnapshotNowEndToEnd(t *testing.T) {
 	pipe := pipeline.New(st, filepath.Join(dataDir, "reports"), logger)
 	fanout := &notify.Fanout{Logger: logger}
 	processChange := makeProcessChange(snaps, pipe, fanout, logger)
+	snapshotNow := makeSnapshotNow(st, snaps, nil, processChange)
 	handler := api.New(api.Config{
-		Store:       st,
-		SnapshotNow: makeSnapshotNow(st, snaps, nil, processChange),
-		Logger:      logger,
+		Store: st,
+		SnapshotNow: func(ctx context.Context, deviceID string) (*store.Change, bool, error) {
+			return snapshotNow(ctx, deviceID, "")
+		},
+		Logger: logger,
 	})
 
 	post := func(target string) *httptest.ResponseRecorder {

@@ -147,7 +147,8 @@ func TestRecordAndGetChange(t *testing.T) {
 	}
 	if got.DeviceID != "gw1" || got.CommitHash != "abc123" || got.PrevCommitHash != "def456" ||
 		got.Summary != change.Summary || got.MaxSeverity != "high" ||
-		got.AnalysisJSON != change.AnalysisJSON || got.ReportDir != change.ReportDir {
+		got.AnalysisJSON != change.AnalysisJSON || got.ReportDir != change.ReportDir ||
+		got.ChangedBy != "" {
 		t.Fatalf("GetChange mismatch: %+v", got)
 	}
 	if got.DetectedAt.IsZero() {
@@ -162,6 +163,37 @@ func TestRecordAndGetChange(t *testing.T) {
 
 	if _, err := s.GetChange(ctx, 9999); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("GetChange missing: got %v, want ErrNotFound", err)
+	}
+}
+
+func TestRecordChangeChangedBy(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+	if err := s.CreateDevice(ctx, testDevice("gw1")); err != nil {
+		t.Fatalf("CreateDevice: %v", err)
+	}
+	id, err := s.RecordChange(ctx, Change{
+		DeviceID:    "gw1",
+		CommitHash:  "abc123",
+		MaxSeverity: "low",
+		ChangedBy:   "alice",
+	})
+	if err != nil {
+		t.Fatalf("RecordChange: %v", err)
+	}
+	got, err := s.GetChange(ctx, id)
+	if err != nil {
+		t.Fatalf("GetChange: %v", err)
+	}
+	if got.ChangedBy != "alice" {
+		t.Fatalf("ChangedBy = %q, want alice", got.ChangedBy)
+	}
+	listed, err := s.ListChanges(ctx, ListChangesOptions{DeviceID: "gw1"})
+	if err != nil {
+		t.Fatalf("ListChanges: %v", err)
+	}
+	if len(listed) != 1 || listed[0].ChangedBy != "alice" {
+		t.Fatalf("ListChanges ChangedBy = %+v", listed)
 	}
 }
 

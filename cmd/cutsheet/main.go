@@ -133,7 +133,7 @@ func runServe(args []string) error {
 		// and Fanout logs failures instead of returning them, so a dead
 		// webhook can delay this device's poll loop briefly but never crash
 		// or fail the pipeline.
-		if _, err := processChange(ctx, device, result); err != nil {
+		if _, err := processChange(ctx, device, result, ""); err != nil {
 			logger.Error("change analysis failed", "device", device.ID, "error", err)
 		}
 	}
@@ -149,14 +149,15 @@ func runServe(args []string) error {
 	snapshotNow := makeSnapshotNow(st, snaps, box, processChange)
 	var syslogListener *syslogtrigger.Listener
 	if syslogCfg.listen != "" {
-		syslogListener = syslogtrigger.New(st, func(ctx context.Context, deviceID string) error {
-			change, changed, err := snapshotNow(ctx, deviceID)
+		syslogListener = syslogtrigger.New(st, func(ctx context.Context, deviceID, changedBy string) error {
+			change, changed, err := snapshotNow(ctx, deviceID, changedBy)
 			if err != nil {
 				return err
 			}
 			if changed && change != nil {
 				logger.Info("syslog-triggered snapshot recorded change",
-					"device", deviceID, "change", change.ID, "severity", change.MaxSeverity)
+					"device", deviceID, "change", change.ID, "severity", change.MaxSeverity,
+					"changed_by", change.ChangedBy)
 			} else {
 				logger.Info("syslog-triggered snapshot found no change", "device", deviceID)
 			}
@@ -174,9 +175,11 @@ func runServe(args []string) error {
 	}
 
 	apiHandler := api.New(api.Config{
-		Store:       st,
-		SnapshotNow: snapshotNow,
-		Secrets:     box,
+		Store: st,
+		SnapshotNow: func(ctx context.Context, deviceID string) (*store.Change, bool, error) {
+			return snapshotNow(ctx, deviceID, "")
+		},
+		Secrets: box,
 		DevicesChanged: func() {
 			if err := sched.Refresh(); err != nil {
 				logger.Error("scheduler refresh failed", "error", err)
@@ -249,13 +252,14 @@ func runServe(args []string) error {
 // makeProcessChange builds the analyze+record+notify step that runs after a
 // snapshot changed, shared verbatim by the scheduler's change handler and the
 // API's snapshot-now path so the two can never diverge in behavior.
-func makeProcessChange(snaps *snapshots.SnapshotStore, pipe *pipeline.Pipeline, fanout *notify.Fanout, logger *slog.Logger) func(context.Context, store.Device, snapshots.SaveResult) (store.Change, error) {
-	return func(ctx context.Context, device store.Device, result snapshots.SaveResult) (store.Change, error) {
+// changedBy is optional syslog audit attribution; empty for poll/API paths.
+func makeProcessChange(snaps *snapshots.SnapshotStore, pipe *pipeline.Pipeline, fanout *notify.Fanout, logger *slog.Logger) func(context.Context, store.Device, snapshots.SaveResult, string) (store.Change, error) {
+	return func(ctx context.Context, device store.Device, result snapshots.SaveResult, changedBy string) (store.Change, error) {
 		current, err := snaps.GetAt(device.ID, result.CommitHash)
 		if err != nil {
 			return store.Change{}, fmt.Errorf("load snapshot content for commit %s: %w", result.CommitHash, err)
 		}
-		change, err := pipe.HandleChange(ctx, device, result, current)
+		change, err := pipe.HandleChange(ctx, device, result, current, changedBy)
 		if err != nil {
 			return store.Change{}, err
 		}
@@ -263,7 +267,8 @@ func makeProcessChange(snaps *snapshots.SnapshotStore, pipe *pipeline.Pipeline, 
 			"device", device.ID,
 			"severity", change.MaxSeverity,
 			"findings", len(change.Findings),
-			"report_dir", change.ReportDir)
+			"report_dir", change.ReportDir,
+			"changed_by", change.ChangedBy)
 		fanout.Notify(ctx, notify.EventFromChange(device, change))
 		return change, nil
 	}
@@ -280,8 +285,8 @@ const snapshotFetchTimeout = 60 * time.Second
 // reports through a fire-and-forget handler, while this path builds a fresh
 // collector from the current registry row and must return the recorded
 // change.
-func makeSnapshotNow(st *store.Store, snaps *snapshots.SnapshotStore, box *secrets.Box, processChange func(context.Context, store.Device, snapshots.SaveResult) (store.Change, error)) api.SnapshotNow {
-	return func(ctx context.Context, deviceID string) (*store.Change, bool, error) {
+func makeSnapshotNow(st *store.Store, snaps *snapshots.SnapshotStore, box *secrets.Box, processChange func(context.Context, store.Device, snapshots.SaveResult, string) (store.Change, error)) func(context.Context, string, string) (*store.Change, bool, error) {
+	return func(ctx context.Context, deviceID, changedBy string) (*store.Change, bool, error) {
 		device, err := st.GetDevice(ctx, deviceID)
 		if err != nil {
 			return nil, false, err
@@ -303,7 +308,7 @@ func makeSnapshotNow(st *store.Store, snaps *snapshots.SnapshotStore, box *secre
 		if !result.Changed {
 			return nil, false, nil
 		}
-		change, err := processChange(ctx, device, result)
+		change, err := processChange(ctx, device, result, changedBy)
 		if err != nil {
 			return nil, false, err
 		}

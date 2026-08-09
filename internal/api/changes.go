@@ -31,6 +31,7 @@ type changeJSON struct {
 	Summary        string    `json:"summary"`
 	MaxSeverity    string    `json:"max_severity"`
 	HasReport      bool      `json:"has_report"`
+	ChangedBy      string    `json:"changed_by"`
 }
 
 // changeDetailJSON adds the analysis document and findings.
@@ -59,6 +60,7 @@ func toChangeJSON(c store.Change) changeJSON {
 		Summary:        c.Summary,
 		MaxSeverity:    c.MaxSeverity,
 		HasReport:      c.ReportDir != "",
+		ChangedBy:      c.ChangedBy,
 	}
 }
 

@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Syslog-triggered snapshots attribute config changes to device usernames when
+  the UDP message is a recognized audit event (Cisco-family CONFIG_I / NX-OS
+  VSHD_SYSLOG_CONFIG_I, Junos UI_COMMIT). The username is stored on the change
+  as `changed_by`, shown in the timeline and change detail, and included in
+  webhook/Discord notifications. Missing or unrecognized audit bodies still
+  trigger snapshots with empty attribution.
 - `pkg/configdiff` analysis engine (bootstrapped from config-diff-explainer):
   deterministic, offline config diff analysis with risk findings, rollback
   and validation plans, operator checklist, stakeholder brief, and HTML

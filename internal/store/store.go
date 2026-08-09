@@ -48,7 +48,11 @@ type Change struct {
 	MaxSeverity    string // none, low, medium, high
 	AnalysisJSON   string // serialized configdiff.Analysis
 	ReportDir      string
-	Findings       []Finding
+	// ChangedBy is the device username attributed from a syslog audit
+	// event when known; empty when the change was not syslog-triggered
+	// or the message body had no recognizable user.
+	ChangedBy string
+	Findings  []Finding
 }
 
 // Finding is one risk finding attached to a change.
@@ -253,9 +257,9 @@ func (s *Store) RecordChange(ctx context.Context, c Change) (int64, error) {
 	defer tx.Rollback()
 
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO changes (device_id, detected_at, commit_hash, prev_commit_hash, summary, max_severity, analysis_json, report_dir)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.DeviceID, formatTime(detectedAt), c.CommitHash, c.PrevCommitHash, c.Summary, c.MaxSeverity, c.AnalysisJSON, c.ReportDir)
+		INSERT INTO changes (device_id, detected_at, commit_hash, prev_commit_hash, summary, max_severity, analysis_json, report_dir, changed_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.DeviceID, formatTime(detectedAt), c.CommitHash, c.PrevCommitHash, c.Summary, c.MaxSeverity, c.AnalysisJSON, c.ReportDir, c.ChangedBy)
 	if err != nil {
 		return 0, fmt.Errorf("record change for device %q: %w", c.DeviceID, err)
 	}
@@ -280,7 +284,7 @@ func (s *Store) RecordChange(ctx context.Context, c Change) (int64, error) {
 // GetChange returns one change with its findings, or ErrNotFound.
 func (s *Store) GetChange(ctx context.Context, id int64) (Change, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, device_id, detected_at, commit_hash, prev_commit_hash, summary, max_severity, analysis_json, report_dir
+		SELECT id, device_id, detected_at, commit_hash, prev_commit_hash, summary, max_severity, analysis_json, report_dir, changed_by
 		FROM changes WHERE id = ?`, id)
 	c, err := scanChange(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -314,7 +318,7 @@ func (s *Store) GetChange(ctx context.Context, id int64) (Change, error) {
 // paged with Limit/Offset. Findings are not populated; use GetChange.
 func (s *Store) ListChanges(ctx context.Context, opts ListChangesOptions) ([]Change, error) {
 	query := `
-		SELECT id, device_id, detected_at, commit_hash, prev_commit_hash, summary, max_severity, analysis_json, report_dir
+		SELECT id, device_id, detected_at, commit_hash, prev_commit_hash, summary, max_severity, analysis_json, report_dir, changed_by
 		FROM changes`
 	var conds []string
 	var args []any
@@ -403,7 +407,7 @@ func scanChange(row scanner) (Change, error) {
 	var c Change
 	var detectedAt string
 	if err := row.Scan(&c.ID, &c.DeviceID, &detectedAt, &c.CommitHash, &c.PrevCommitHash,
-		&c.Summary, &c.MaxSeverity, &c.AnalysisJSON, &c.ReportDir); err != nil {
+		&c.Summary, &c.MaxSeverity, &c.AnalysisJSON, &c.ReportDir, &c.ChangedBy); err != nil {
 		return Change{}, err
 	}
 	var err error

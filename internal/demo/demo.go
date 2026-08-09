@@ -175,7 +175,7 @@ func snapshot(ctx context.Context, st *store.Store, snaps *snapshots.SnapshotSto
 	if !result.Changed {
 		return store.Change{}, fmt.Errorf("demo snapshot for %s recorded no change; fixtures out of sync", deviceID)
 	}
-	change, err := pipe.HandleChange(ctx, dev, result, content)
+	change, err := pipe.HandleChange(ctx, dev, result, content, "")
 	if err != nil {
 		return store.Change{}, fmt.Errorf("analyze change for %s: %w", deviceID, err)
 	}

@@ -38,15 +38,15 @@ func New(st *store.Store, reportsRoot string, logger *slog.Logger) *Pipeline {
 // (result.PrevContent == nil) is recorded as-is with no analysis; any later
 // change is diffed with configdiff.Explain, which also writes the report
 // bundle (markdown, report.html, diff-analysis.json) to the change's report
-// directory.
-func (p *Pipeline) HandleChange(ctx context.Context, device store.Device, result snapshots.SaveResult, currentContent []byte) (store.Change, error) {
+// directory. changedBy is optional attribution from a syslog audit event.
+func (p *Pipeline) HandleChange(ctx context.Context, device store.Device, result snapshots.SaveResult, currentContent []byte, changedBy string) (store.Change, error) {
 	if result.PrevContent == nil {
-		return p.recordInitial(ctx, device, result)
+		return p.recordInitial(ctx, device, result, changedBy)
 	}
-	return p.analyzeAndRecord(ctx, device, result, currentContent)
+	return p.analyzeAndRecord(ctx, device, result, currentContent, changedBy)
 }
 
-func (p *Pipeline) recordInitial(ctx context.Context, device store.Device, result snapshots.SaveResult) (store.Change, error) {
+func (p *Pipeline) recordInitial(ctx context.Context, device store.Device, result snapshots.SaveResult, changedBy string) (store.Change, error) {
 	change := store.Change{
 		DeviceID:     device.ID,
 		DetectedAt:   time.Now(),
@@ -54,6 +54,7 @@ func (p *Pipeline) recordInitial(ctx context.Context, device store.Device, resul
 		Summary:      "initial snapshot",
 		MaxSeverity:  "none",
 		AnalysisJSON: "{}",
+		ChangedBy:    changedBy,
 	}
 	id, err := p.store.RecordChange(ctx, change)
 	if err != nil {
@@ -63,7 +64,7 @@ func (p *Pipeline) recordInitial(ctx context.Context, device store.Device, resul
 	return change, nil
 }
 
-func (p *Pipeline) analyzeAndRecord(ctx context.Context, device store.Device, result snapshots.SaveResult, currentContent []byte) (store.Change, error) {
+func (p *Pipeline) analyzeAndRecord(ctx context.Context, device store.Device, result snapshots.SaveResult, currentContent []byte, changedBy string) (store.Change, error) {
 	// configdiff.Explain takes file paths; bridge the in-memory contents
 	// through a throwaway temp dir. The report dir, in contrast, is the
 	// product artifact and is kept.
@@ -125,6 +126,7 @@ func (p *Pipeline) analyzeAndRecord(ctx context.Context, device store.Device, re
 		MaxSeverity:    maxSeverity(res.Analysis.RiskFindings),
 		AnalysisJSON:   string(analysisJSON),
 		ReportDir:      reportDir,
+		ChangedBy:      changedBy,
 		Findings:       findings,
 	}
 	id, err := p.store.RecordChange(ctx, change)

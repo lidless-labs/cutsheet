@@ -1,6 +1,8 @@
 // Package syslogtrigger starts on-demand snapshots from inbound syslog
-// packets. It matches by sender IP only; parsing syslog message content is
-// intentionally out of scope for the trigger path.
+// packets. It matches by sender IP and, when the message is a recognized
+// config-change audit event, extracts the responsible username for
+// attribution. Unrecognized bodies still trigger a snapshot with empty
+// attribution.
 package syslogtrigger
 
 import (
@@ -29,7 +31,9 @@ type DeviceLister interface {
 }
 
 // SnapshotFunc triggers an immediate snapshot for one device.
-type SnapshotFunc func(ctx context.Context, deviceID string) error
+// changedBy is the optional username extracted from a syslog audit event;
+// empty when unknown.
+type SnapshotFunc func(ctx context.Context, deviceID, changedBy string) error
 
 // Resolver is the subset of net.Resolver used for hostname collector configs.
 type Resolver interface {
@@ -84,6 +88,7 @@ type Listener struct {
 type debounceTimer struct {
 	timer      *time.Timer
 	generation int
+	changedBy  string
 }
 
 type dropLogState struct {
@@ -189,7 +194,7 @@ func (l *Listener) readLoop(ctx context.Context, conn *net.UDPConn) {
 
 	buf := make([]byte, 64*1024)
 	for {
-		_, remote, err := conn.ReadFromUDP(buf)
+		n, remote, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
 				return
@@ -197,10 +202,11 @@ func (l *Listener) readLoop(ctx context.Context, conn *net.UDPConn) {
 			l.setReadErr(fmt.Errorf("read syslog packet: %w", err))
 			return
 		}
-		if remote == nil || remote.IP == nil {
+		if remote == nil || remote.IP == nil || n <= 0 {
 			continue
 		}
 		sourceIP := remote.IP.String()
+		changedBy := ParseChangedBy(string(buf[:n]))
 		deviceIDs, err := l.deviceIDsForSource(ctx, sourceIP)
 		if err != nil {
 			if ctx.Err() == nil {
@@ -213,7 +219,7 @@ func (l *Listener) readLoop(ctx context.Context, conn *net.UDPConn) {
 			continue
 		}
 		for _, deviceID := range deviceIDs {
-			l.schedule(deviceID)
+			l.schedule(deviceID, changedBy)
 		}
 	}
 }
@@ -295,7 +301,7 @@ func (l *Listener) resolveHost(ctx context.Context, host string) []string {
 	return out
 }
 
-func (l *Listener) schedule(deviceID string) {
+func (l *Listener) schedule(deviceID, changedBy string) {
 	now := time.Now()
 	l.mu.Lock()
 	if until, cooling := l.cooldowns[deviceID]; cooling {
@@ -319,11 +325,15 @@ func (l *Listener) schedule(deviceID string) {
 	// packets coalesce into it without resetting it. A sliding window would
 	// never fire on a device that logs more often than the debounce
 	// interval, which is exactly the kind of device worth watching.
-	if _, armed := l.debouncers[deviceID]; armed {
+	// Later packets can still refine attribution when they carry a username.
+	if state, armed := l.debouncers[deviceID]; armed {
+		if changedBy != "" {
+			state.changedBy = changedBy
+		}
 		l.mu.Unlock()
 		return
 	}
-	state := &debounceTimer{generation: 1}
+	state := &debounceTimer{generation: 1, changedBy: changedBy}
 	l.debouncers[deviceID] = state
 	generation := state.generation
 	l.pendingWG.Add(1)
@@ -341,6 +351,7 @@ func (l *Listener) fire(deviceID string, generation int) {
 		l.mu.Unlock()
 		return
 	}
+	changedBy := state.changedBy
 	delete(l.debouncers, deviceID)
 	if l.inFlight[deviceID] {
 		l.mu.Unlock()
@@ -351,7 +362,7 @@ func (l *Listener) fire(deviceID string, generation int) {
 	ctx := l.ctx
 	l.mu.Unlock()
 
-	if err := l.snapshot(ctx, deviceID); err != nil && ctx.Err() == nil {
+	if err := l.snapshot(ctx, deviceID, changedBy); err != nil && ctx.Err() == nil {
 		l.logger.Error("syslog-triggered snapshot failed", "device", deviceID, "error", err)
 	}
 

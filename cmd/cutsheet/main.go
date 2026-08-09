@@ -179,7 +179,7 @@ func runServe(args []string) error {
 		SnapshotNow: func(ctx context.Context, deviceID string) (*store.Change, bool, error) {
 			return snapshotNow(ctx, deviceID, "")
 		},
-		Secrets:     box,
+		Secrets: box,
 		DevicesChanged: func() {
 			if err := sched.Refresh(); err != nil {
 				logger.Error("scheduler refresh failed", "error", err)

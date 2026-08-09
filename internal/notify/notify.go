@@ -29,6 +29,8 @@ type Event struct {
 	MaxSeverity   string    `json:"max_severity"`
 	FindingsCount int       `json:"findings_count"`
 	ReportDir     string    `json:"report_dir"`
+	// ChangedBy is the device username from a syslog audit event when known.
+	ChangedBy string `json:"changed_by"`
 }
 
 // EventFromChange builds the notification event for a recorded change.
@@ -42,6 +44,7 @@ func EventFromChange(device store.Device, change store.Change) Event {
 		MaxSeverity:   change.MaxSeverity,
 		FindingsCount: len(change.Findings),
 		ReportDir:     change.ReportDir,
+		ChangedBy:     change.ChangedBy,
 	})
 }
 
@@ -137,16 +140,21 @@ func (d *Discord) Notify(ctx context.Context, ev Event) error {
 	if ev.ChangeID > 0 {
 		changeID = strconv.FormatInt(ev.ChangeID, 10)
 	}
+	fields := []discordEmbedField{
+		{Name: "Severity", Value: ev.MaxSeverity, Inline: true},
+		{Name: "Findings", Value: strconv.Itoa(ev.FindingsCount), Inline: true},
+		{Name: "Change ID", Value: changeID},
+	}
+	// Discord rejects embeds with empty field values.
+	if ev.ChangedBy != "" {
+		fields = append(fields, discordEmbedField{Name: "Changed by", Value: ev.ChangedBy, Inline: true})
+	}
 	msg := discordMessage{Embeds: []discordEmbed{{
 		Title:       "Config change: " + ev.DeviceName,
 		Description: ev.Summary,
 		Color:       severityColor(ev.MaxSeverity),
-		Fields: []discordEmbedField{
-			{Name: "Severity", Value: ev.MaxSeverity, Inline: true},
-			{Name: "Findings", Value: strconv.Itoa(ev.FindingsCount), Inline: true},
-			{Name: "Change ID", Value: changeID},
-		},
-		Timestamp: ev.DetectedAt.UTC().Format(time.RFC3339),
+		Fields:      fields,
+		Timestamp:   ev.DetectedAt.UTC().Format(time.RFC3339),
 	}}}
 	body, err := json.Marshal(msg)
 	if err != nil {

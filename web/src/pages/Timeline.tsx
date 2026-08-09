@@ -150,6 +150,11 @@ export default function Timeline() {
                 <span className="timeline-device">{deviceName(c.device_id)}</span>
                 <span className="timeline-summary">{c.summary}</span>
                 <span className="timeline-meta">
+                  {c.changed_by && (
+                    <span className="changed-by" title="attributed from syslog audit event">
+                      by {c.changed_by}
+                    </span>
+                  )}
                   {fc !== null && fc > 0 && (
                     <span className="findings-count">
                       {fc} finding{fc === 1 ? "" : "s"}

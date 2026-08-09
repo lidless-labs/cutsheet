@@ -508,6 +508,7 @@ func TestChangeGet(t *testing.T) {
 		Summary:      "1 finding (1 high) - 1 block changed",
 		MaxSeverity:  "high",
 		AnalysisJSON: `{"risk_findings":[{"id":"RISK-001"}]}`,
+		ChangedBy:    "alice",
 		Findings:     []store.Finding{{FindingID: "RISK-001", Severity: "high", Category: "acl", Title: "ACL removed", Recommendation: "review"}},
 	})
 	if err != nil {
@@ -519,6 +520,9 @@ func TestChangeGet(t *testing.T) {
 	detail := decode[changeDetailJSON](t, rec)
 	if detail.MaxSeverity != "high" || len(detail.Findings) != 1 || detail.Findings[0].FindingID != "RISK-001" {
 		t.Fatalf("detail: %+v", detail)
+	}
+	if detail.ChangedBy != "alice" {
+		t.Fatalf("ChangedBy = %q, want alice", detail.ChangedBy)
 	}
 	if !strings.Contains(string(detail.Analysis), "RISK-001") {
 		t.Fatalf("analysis not embedded: %s", detail.Analysis)

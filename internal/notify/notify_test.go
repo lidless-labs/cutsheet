@@ -37,11 +37,13 @@ func TestEventFromChange(t *testing.T) {
 		Summary:     "3 findings (1 high) - 5 blocks changed",
 		MaxSeverity: "high",
 		ReportDir:   "/data/reports/edge-gw1/20260609-123000-abcd1234",
+		ChangedBy:   "alice",
 		Findings:    make([]store.Finding, 3),
 	}
 	got := EventFromChange(device, change)
 	want := testEvent()
 	want.ReportDir = "change-42"
+	want.ChangedBy = "alice"
 	if got != want {
 		t.Fatalf("EventFromChange:\n got %+v\nwant %+v", got, want)
 	}
@@ -75,6 +77,7 @@ func TestWebhookPayload(t *testing.T) {
 		"max_severity":   "high",
 		"findings_count": float64(3),
 		"report_dir":     "change-42",
+		"changed_by":     "",
 	}
 	for key, wantVal := range want {
 		if gotBody[key] != wantVal {
@@ -222,6 +225,39 @@ func TestDiscordEmbed(t *testing.T) {
 		}
 	}
 	assertNoReportPathDisclosure(t, got)
+}
+
+func TestDiscordChangedByField(t *testing.T) {
+	var got discordPayload
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Errorf("decode body: %v", err)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	ev := testEvent()
+	ev.ChangedBy = "alice"
+	d := &Discord{URL: srv.URL}
+	if err := d.Notify(context.Background(), ev); err != nil {
+		t.Fatalf("Notify: %v", err)
+	}
+	found := false
+	for _, f := range got.Embeds[0].Fields {
+		if f.Name == "Changed by" {
+			found = true
+			if f.Value != "alice" {
+				t.Fatalf("Changed by = %q, want alice", f.Value)
+			}
+		}
+		if f.Value == "" {
+			t.Errorf("%s field has empty value; Discord rejects empty embed field values", f.Name)
+		}
+	}
+	if !found {
+		t.Fatal("missing Changed by field")
+	}
 }
 
 func TestDiscordColorBySeverity(t *testing.T) {

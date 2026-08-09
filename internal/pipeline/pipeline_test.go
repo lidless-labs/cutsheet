@@ -59,7 +59,7 @@ func TestHandleChangeInitialSnapshot(t *testing.T) {
 		Changed:    true,
 		CommitHash: "0123456789abcdef0123456789abcdef01234567",
 	}
-	change, err := p.HandleChange(context.Background(), device, result, readFixture(t, "sample-before.cfg"))
+	change, err := p.HandleChange(context.Background(), device, result, readFixture(t, "sample-before.cfg"), "")
 	if err != nil {
 		t.Fatalf("HandleChange: %v", err)
 	}
@@ -104,13 +104,16 @@ func TestHandleChangeAnalyzed(t *testing.T) {
 		PrevCommitHash: "0123456789abcdef0123456789abcdef01234567",
 		PrevContent:    before,
 	}
-	change, err := p.HandleChange(context.Background(), device, result, after)
+	change, err := p.HandleChange(context.Background(), device, result, after, "")
 	if err != nil {
 		t.Fatalf("HandleChange: %v", err)
 	}
 
 	if change.MaxSeverity != "high" {
 		t.Fatalf("MaxSeverity = %q, want high", change.MaxSeverity)
+	}
+	if change.ChangedBy != "" {
+		t.Fatalf("ChangedBy = %q, want empty without attribution", change.ChangedBy)
 	}
 	if len(change.Findings) == 0 {
 		t.Fatal("Findings empty, want risk findings from sample fixtures")
@@ -159,6 +162,36 @@ func TestHandleChangeAnalyzed(t *testing.T) {
 	}
 	if stored.MaxSeverity != "high" || len(stored.Findings) != len(change.Findings) {
 		t.Fatalf("stored change: severity %q, findings %d", stored.MaxSeverity, len(stored.Findings))
+	}
+}
+
+func TestHandleChangeChangedBy(t *testing.T) {
+	st := newTestStore(t)
+	device := createDevice(t, st, store.Device{
+		ID: "gw1", Name: "gw1", Vendor: "auto", CollectorType: "file",
+	})
+	p := New(st, filepath.Join(t.TempDir(), "reports"), testLogger())
+	before := readFixture(t, "sample-before.cfg")
+	after := readFixture(t, "sample-after.cfg")
+	result := snapshots.SaveResult{
+		Changed:        true,
+		CommitHash:     "fedcba9876543210fedcba9876543210fedcba98",
+		PrevCommitHash: "0123456789abcdef0123456789abcdef01234567",
+		PrevContent:    before,
+	}
+	change, err := p.HandleChange(context.Background(), device, result, after, "alice")
+	if err != nil {
+		t.Fatalf("HandleChange: %v", err)
+	}
+	if change.ChangedBy != "alice" {
+		t.Fatalf("ChangedBy = %q, want alice", change.ChangedBy)
+	}
+	stored, err := st.GetChange(context.Background(), change.ID)
+	if err != nil {
+		t.Fatalf("GetChange: %v", err)
+	}
+	if stored.ChangedBy != "alice" {
+		t.Fatalf("stored ChangedBy = %q, want alice", stored.ChangedBy)
 	}
 }
 
@@ -267,7 +300,7 @@ func TestEndToEndPollAnalyzeRecord(t *testing.T) {
 			t.Errorf("GetAt: %v", err)
 			return
 		}
-		if _, err := p.HandleChange(ctx, d, result, current); err != nil {
+		if _, err := p.HandleChange(ctx, d, result, current, ""); err != nil {
 			t.Errorf("HandleChange: %v", err)
 		}
 	}

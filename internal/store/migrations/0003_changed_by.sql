@@ -1,0 +1,1 @@
+ALTER TABLE changes ADD COLUMN changed_by TEXT NOT NULL DEFAULT '';

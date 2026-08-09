@@ -164,6 +164,11 @@ export default function ChangeDetailPage() {
           {formatTimestamp(change.detected_at)} ({timeAgo(change.detected_at)})
         </span>
         <span>{change.summary}</span>
+        {change.changed_by && (
+          <span className="changed-by" title="attributed from syslog audit event">
+            by {change.changed_by}
+          </span>
+        )}
         <span className="mono" title="snapshot commit">
           {change.commit_hash.slice(0, 8)}
           {change.prev_commit_hash && ` ← ${change.prev_commit_hash.slice(0, 8)}`}

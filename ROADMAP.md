@@ -15,6 +15,7 @@ Closed issues and major v1 capabilities already in the tree:
 - [#23](https://github.com/lidless-labs/cutsheet/issues/23) track BGP/OSPF peers as first-class objects
 - [#25](https://github.com/lidless-labs/cutsheet/issues/25) README render markers, purity contract, preflight docs, stale notes (closed)
 - Syslog-triggered snapshots with UDP listener, debounce, and cooldown (see README Syslog-triggered snapshots)
+- [#22](https://github.com/lidless-labs/cutsheet/issues/22) attribute config changes to users via syslog audit events
 - Webhook and Discord notifications with configurable severity floor
 - Offline `cutsheet-cli` `explain` and `preflight`
 - Multi-vendor deterministic parsers (Cisco IOS, EdgeOS/VyOS, PAN-OS, Junos, FortiOS, UniFi, eero)
@@ -31,9 +32,8 @@ Reliability and UI bugs queued for the next fix slice:
 
 ## Next
 
-Enhancement backlog sized for single implementation slices:
-
-- [#22](https://github.com/lidless-labs/cutsheet/issues/22) attribute config changes to users via syslog audit events (extends the shipped syslog trigger)
+Enhancement backlog sized for single implementation slices: nothing queued;
+open a GitHub issue to add a slice.
 
 ## Deferred
 

@@ -34,17 +34,18 @@ func (f *fakeDeviceLister) set(devices ...store.Device) {
 }
 
 type snapshotRecorder struct {
-	mu      sync.Mutex
-	ids     []string
-	started chan string
-	block   chan struct{}
+	mu         sync.Mutex
+	ids        []string
+	changedBys []string
+	started    chan string
+	block      chan struct{}
 }
 
 func newSnapshotRecorder() *snapshotRecorder {
 	return &snapshotRecorder{started: make(chan string, 20)}
 }
 
-func (r *snapshotRecorder) snapshot(ctx context.Context, deviceID string) error {
+func (r *snapshotRecorder) snapshot(ctx context.Context, deviceID, changedBy string) error {
 	r.started <- deviceID
 	if r.block != nil {
 		select {
@@ -55,6 +56,7 @@ func (r *snapshotRecorder) snapshot(ctx context.Context, deviceID string) error 
 	}
 	r.mu.Lock()
 	r.ids = append(r.ids, deviceID)
+	r.changedBys = append(r.changedBys, changedBy)
 	r.mu.Unlock()
 	return nil
 }
@@ -70,6 +72,14 @@ func (r *snapshotRecorder) idsSnapshot() []string {
 	defer r.mu.Unlock()
 	out := make([]string, len(r.ids))
 	copy(out, r.ids)
+	return out
+}
+
+func (r *snapshotRecorder) changedBysSnapshot() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]string, len(r.changedBys))
+	copy(out, r.changedBys)
 	return out
 }
 
@@ -430,10 +440,20 @@ func startTestListenerWithOptions(t *testing.T, lister *fakeDeviceLister, rec *s
 
 func sendSyslog(t *testing.T, addr net.Addr) {
 	t.Helper()
-	sendSyslogFrom(t, addr, "")
+	sendSyslogBody(t, addr, "<189>config changed")
+}
+
+func sendSyslogBody(t *testing.T, addr net.Addr, body string) {
+	t.Helper()
+	sendSyslogBodyFrom(t, addr, "", body)
 }
 
 func sendSyslogFrom(t *testing.T, addr net.Addr, localAddr string) {
+	t.Helper()
+	sendSyslogBodyFrom(t, addr, localAddr, "<189>config changed")
+}
+
+func sendSyslogBodyFrom(t *testing.T, addr net.Addr, localAddr, body string) {
 	t.Helper()
 	var dialer net.Dialer
 	if localAddr != "" {
@@ -448,7 +468,7 @@ func sendSyslogFrom(t *testing.T, addr net.Addr, localAddr string) {
 		t.Fatalf("Dial udp: %v", err)
 	}
 	defer conn.Close()
-	if _, err := conn.Write([]byte("<189>config changed")); err != nil {
+	if _, err := conn.Write([]byte(body)); err != nil {
 		t.Fatalf("Write syslog packet: %v", err)
 	}
 }
@@ -540,6 +560,75 @@ func (h *recordingHandler) waitMessages(t *testing.T, message string, want int) 
 		default:
 			time.Sleep(time.Millisecond)
 		}
+	}
+}
+
+func TestListenerAttributesChangedByFromAuditEvent(t *testing.T) {
+	lister := &fakeDeviceLister{devices: []store.Device{{
+		ID:              "edge-gw1",
+		Enabled:         true,
+		CollectorType:   "ssh",
+		CollectorConfig: `{"host":"127.0.0.1"}`,
+	}}}
+	rec := newSnapshotRecorder()
+	ln, cancel := startTestListener(t, lister, rec, 20*time.Millisecond, time.Minute)
+	defer cancel()
+
+	sendSyslogBody(t, ln.Addr(),
+		`<189>May  9 12:00:00 router 12345: %SYS-5-CONFIG_I: Configured from console by admin on vty0 (198.18.0.5)`)
+
+	got := waitStarted(t, rec)
+	if got != "edge-gw1" {
+		t.Fatalf("snapshot device = %q, want edge-gw1", got)
+	}
+	waitCompleted(t, rec, 1)
+	if bys := rec.changedBysSnapshot(); len(bys) != 1 || bys[0] != "admin" {
+		t.Fatalf("changedBys = %#v, want [admin]", bys)
+	}
+}
+
+func TestListenerDebounceKeepsLaterAuditUsername(t *testing.T) {
+	lister := &fakeDeviceLister{devices: []store.Device{{
+		ID:              "edge-gw1",
+		Enabled:         true,
+		CollectorType:   "ssh",
+		CollectorConfig: `{"host":"127.0.0.1"}`,
+	}}}
+	rec := newSnapshotRecorder()
+	ln, cancel := startTestListener(t, lister, rec, 40*time.Millisecond, time.Minute)
+	defer cancel()
+
+	// First packet has no audit user; a later coalesced packet carries one.
+	sendSyslogBody(t, ln.Addr(), `<189>noise`)
+	sendSyslogBody(t, ln.Addr(),
+		`<30>May  9 12:00:00 router mgd[1234]: UI_COMMIT: User 'alice' requested 'commit' operation (comment: none)`)
+
+	got := waitStarted(t, rec)
+	if got != "edge-gw1" {
+		t.Fatalf("snapshot device = %q, want edge-gw1", got)
+	}
+	waitCompleted(t, rec, 1)
+	if bys := rec.changedBysSnapshot(); len(bys) != 1 || bys[0] != "alice" {
+		t.Fatalf("changedBys = %#v, want [alice]", bys)
+	}
+}
+
+func TestListenerUnattributedWhenAuditAbsent(t *testing.T) {
+	lister := &fakeDeviceLister{devices: []store.Device{{
+		ID:              "edge-gw1",
+		Enabled:         true,
+		CollectorType:   "ssh",
+		CollectorConfig: `{"host":"127.0.0.1"}`,
+	}}}
+	rec := newSnapshotRecorder()
+	ln, cancel := startTestListener(t, lister, rec, 20*time.Millisecond, time.Minute)
+	defer cancel()
+
+	sendSyslog(t, ln.Addr())
+	_ = waitStarted(t, rec)
+	waitCompleted(t, rec, 1)
+	if bys := rec.changedBysSnapshot(); len(bys) != 1 || bys[0] != "" {
+		t.Fatalf("changedBys = %#v, want empty attribution", bys)
 	}
 }
 

@@ -370,6 +370,11 @@ tbody tr:hover {
   font-size: 11px;
 }
 
+.changed-by {
+  font-family: var(--mono);
+  color: var(--text-dim);
+}
+
 .refresh-note {
   font-size: 11px;
   color: var(--text-faint);

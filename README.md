@@ -228,8 +228,12 @@ After a snapshot finishes, matching packets for that device are dropped for
 the cooldown window instead of being deferred.
 
 Use a high UDP port such as 5514 unless your service manager grants permission
-to bind 514. Point device syslog at the Cutsheet host and port; the message
-body is not parsed.
+to bind 514. Point device syslog at the Cutsheet host and port. When the message
+is a recognized config-change audit event (Cisco-family `%SYS-*-CONFIG_I` /
+NX-OS `%VSHD-5-VSHD_SYSLOG_CONFIG_I`, or Junos `UI_COMMIT`), Cutsheet extracts
+the responsible username and attaches it to the recorded change, timeline, and
+notifications as `changed_by`. Unrecognized bodies still trigger a snapshot;
+attribution is left empty when the audit user cannot be parsed.
 
 ## Notifications
 

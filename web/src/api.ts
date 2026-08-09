@@ -125,6 +125,7 @@ export interface Change {
   summary: string;
   max_severity: Severity;
   has_report: boolean;
+  changed_by: string;
 }
 
 export interface Finding {

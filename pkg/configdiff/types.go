@@ -13,18 +13,18 @@ type Result struct {
 }
 
 type Analysis struct {
-	SchemaVersion            string             `json:"schema_version"`
-	DetectedPlatform         DetectedPlatform   `json:"detected_platform"`
-	BlockChanges             []BlockChange      `json:"block_changes"`
-	TouchedInterfaces        []TouchedInterface `json:"touched_interfaces"`
-	TouchedVLANs             []TouchedVLAN      `json:"touched_vlans"`
-	TouchedRoutes            []TouchedRoute     `json:"touched_routes"`
-	TouchedACLFirewallRules  []TouchedRule      `json:"touched_acl_firewall_rules"`
-	TouchedNATObjects        []TouchedObject    `json:"touched_nat_objects"`
-	TouchedVPNObjects        []TouchedObject    `json:"touched_vpn_objects"`
-	ManagementPlaneChanges   []CategoryChange   `json:"management_plane_changes"`
-	AAAChanges               []CategoryChange   `json:"aaa_changes"`
-	LoggingSNMPNTPDNSChanges []CategoryChange   `json:"logging_snmp_ntp_dns_changes"`
+	SchemaVersion            string               `json:"schema_version"`
+	DetectedPlatform         DetectedPlatform     `json:"detected_platform"`
+	BlockChanges             []BlockChange        `json:"block_changes"`
+	TouchedInterfaces        []TouchedInterface   `json:"touched_interfaces"`
+	TouchedVLANs             []TouchedVLAN        `json:"touched_vlans"`
+	TouchedRoutes            []TouchedRoute       `json:"touched_routes"`
+	TouchedACLFirewallRules  []TouchedRule        `json:"touched_acl_firewall_rules"`
+	TouchedNATObjects        []TouchedObject      `json:"touched_nat_objects"`
+	TouchedVPNObjects        []TouchedObject      `json:"touched_vpn_objects"`
+	ManagementPlaneChanges   []CategoryChange     `json:"management_plane_changes"`
+	AAAChanges               []CategoryChange     `json:"aaa_changes"`
+	LoggingSNMPNTPDNSChanges []CategoryChange     `json:"logging_snmp_ntp_dns_changes"`
 	SwitchingChanges         []SwitchingChange    `json:"switching_changes"`
 	TouchedRoutingPeers      []TouchedRoutingPeer `json:"touched_routing_peers"`
 	RiskFindings             []RiskFinding        `json:"risk_findings"`

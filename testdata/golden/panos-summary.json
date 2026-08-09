@@ -11,6 +11,7 @@
   "touched_vpn": 0,
   "switching_changes": 0,
   "touched_routing_peers": 0,
+  "touched_security_boundaries": 1,
   "rollback_confidence": "risky",
   "risk_titles": [
     "AAA or authentication changed",
@@ -20,6 +21,8 @@
     "NAT configuration changed",
     "Logging or monitoring may be reduced",
     "Default route changed",
-    "Route removed"
+    "Route removed",
+    "Trust boundary collapsed",
+    "Management access crosses segments"
   ]
 }

@@ -13,22 +13,23 @@ type Result struct {
 }
 
 type Analysis struct {
-	SchemaVersion            string               `json:"schema_version"`
-	DetectedPlatform         DetectedPlatform     `json:"detected_platform"`
-	BlockChanges             []BlockChange        `json:"block_changes"`
-	TouchedInterfaces        []TouchedInterface   `json:"touched_interfaces"`
-	TouchedVLANs             []TouchedVLAN        `json:"touched_vlans"`
-	TouchedRoutes            []TouchedRoute       `json:"touched_routes"`
-	TouchedACLFirewallRules  []TouchedRule        `json:"touched_acl_firewall_rules"`
-	TouchedNATObjects        []TouchedObject      `json:"touched_nat_objects"`
-	TouchedVPNObjects        []TouchedObject      `json:"touched_vpn_objects"`
-	ManagementPlaneChanges   []CategoryChange     `json:"management_plane_changes"`
-	AAAChanges               []CategoryChange     `json:"aaa_changes"`
-	LoggingSNMPNTPDNSChanges []CategoryChange     `json:"logging_snmp_ntp_dns_changes"`
-	SwitchingChanges         []SwitchingChange    `json:"switching_changes"`
-	TouchedRoutingPeers      []TouchedRoutingPeer `json:"touched_routing_peers"`
-	RiskFindings             []RiskFinding        `json:"risk_findings"`
-	Rollback                 RollbackAnalysis     `json:"rollback"`
+	SchemaVersion             string                    `json:"schema_version"`
+	DetectedPlatform          DetectedPlatform          `json:"detected_platform"`
+	BlockChanges              []BlockChange             `json:"block_changes"`
+	TouchedInterfaces         []TouchedInterface        `json:"touched_interfaces"`
+	TouchedVLANs              []TouchedVLAN             `json:"touched_vlans"`
+	TouchedRoutes             []TouchedRoute            `json:"touched_routes"`
+	TouchedACLFirewallRules   []TouchedRule             `json:"touched_acl_firewall_rules"`
+	TouchedNATObjects         []TouchedObject           `json:"touched_nat_objects"`
+	TouchedVPNObjects         []TouchedObject           `json:"touched_vpn_objects"`
+	ManagementPlaneChanges    []CategoryChange          `json:"management_plane_changes"`
+	AAAChanges                []CategoryChange          `json:"aaa_changes"`
+	LoggingSNMPNTPDNSChanges  []CategoryChange          `json:"logging_snmp_ntp_dns_changes"`
+	SwitchingChanges          []SwitchingChange         `json:"switching_changes"`
+	TouchedRoutingPeers       []TouchedRoutingPeer      `json:"touched_routing_peers"`
+	TouchedSecurityBoundaries []TouchedSecurityBoundary `json:"touched_security_boundaries"`
+	RiskFindings              []RiskFinding             `json:"risk_findings"`
+	Rollback                  RollbackAnalysis          `json:"rollback"`
 }
 
 // SwitchingChange captures a Layer 2 switching construct that changed between the
@@ -57,6 +58,27 @@ type TouchedRoutingPeer struct {
 	Before     string   `json:"before,omitempty"`
 	After      string   `json:"after,omitempty"`
 	Evidence   []string `json:"evidence"`
+}
+
+// TouchedSecurityBoundary captures a security-zone or microsegmentation boundary
+// that was added, removed, or changed. Zone flows and memberships are extracted
+// semantically from existing firewall/acl/zone blocks rather than reshaping block IDs.
+type TouchedSecurityBoundary struct {
+	Kind            string   `json:"kind"`
+	SourceZone      string   `json:"source_zone,omitempty"`
+	DestinationZone string   `json:"destination_zone,omitempty"`
+	Zone            string   `json:"zone,omitempty"`
+	Member          string   `json:"member,omitempty"`
+	Action          string   `json:"action,omitempty"`
+	Protocol        string   `json:"protocol,omitempty"`
+	Service         string   `json:"service,omitempty"`
+	Policy          string   `json:"policy,omitempty"`
+	VRF             string   `json:"vrf,omitempty"`
+	Tenant          string   `json:"tenant,omitempty"`
+	ChangeType      string   `json:"change_type"`
+	Before          string   `json:"before,omitempty"`
+	After           string   `json:"after,omitempty"`
+	Evidence        []string `json:"evidence"`
 }
 
 type DetectedPlatform struct {
@@ -99,14 +121,19 @@ type TouchedRoute struct {
 }
 
 type TouchedRule struct {
-	Name        string   `json:"name"`
-	Action      string   `json:"action,omitempty"`
-	Protocol    string   `json:"protocol,omitempty"`
-	Source      string   `json:"source,omitempty"`
-	Destination string   `json:"destination,omitempty"`
-	Service     string   `json:"service,omitempty"`
-	ChangeType  string   `json:"change_type"`
-	Evidence    []string `json:"evidence"`
+	Name            string   `json:"name"`
+	Action          string   `json:"action,omitempty"`
+	Protocol        string   `json:"protocol,omitempty"`
+	Source          string   `json:"source,omitempty"`
+	Destination     string   `json:"destination,omitempty"`
+	Service         string   `json:"service,omitempty"`
+	SourceZone      string   `json:"source_zone,omitempty"`
+	DestinationZone string   `json:"destination_zone,omitempty"`
+	VRF             string   `json:"vrf,omitempty"`
+	Tenant          string   `json:"tenant,omitempty"`
+	Policy          string   `json:"policy,omitempty"`
+	ChangeType      string   `json:"change_type"`
+	Evidence        []string `json:"evidence"`
 }
 
 type TouchedObject struct {

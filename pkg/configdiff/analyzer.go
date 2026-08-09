@@ -11,24 +11,26 @@ import (
 func analyze(before, after parsedConfig, requestedVendor string) Analysis {
 	changes := diffBlocks(before.Blocks, after.Blocks)
 	peers := routingPeerChanges(changes)
+	boundaries := securityBoundaryChanges(changes)
 	analysis := Analysis{
-		SchemaVersion:            "1.2",
-		DetectedPlatform:         after.Detection,
-		BlockChanges:             changes,
-		TouchedInterfaces:        touchedInterfaces(changes),
-		TouchedVLANs:             touchedVLANs(changes),
-		TouchedRoutes:            touchedRoutes(changes),
-		TouchedACLFirewallRules:  touchedRules(changes),
-		TouchedNATObjects:        touchedObjects(changes, "nat"),
-		TouchedVPNObjects:        touchedObjects(changes, "vpn"),
-		ManagementPlaneChanges:   categoryChanges(changes, "management"),
-		AAAChanges:               categoryChanges(changes, "aaa"),
-		LoggingSNMPNTPDNSChanges: categoryChanges(changes, "observability"),
-		SwitchingChanges:         switchingChanges(changes),
-		TouchedRoutingPeers:      peers,
+		SchemaVersion:             "1.3",
+		DetectedPlatform:          after.Detection,
+		BlockChanges:              changes,
+		TouchedInterfaces:         touchedInterfaces(changes),
+		TouchedVLANs:              touchedVLANs(changes),
+		TouchedRoutes:             touchedRoutes(changes),
+		TouchedACLFirewallRules:   touchedRules(changes),
+		TouchedNATObjects:         touchedObjects(changes, "nat"),
+		TouchedVPNObjects:         touchedObjects(changes, "vpn"),
+		ManagementPlaneChanges:    categoryChanges(changes, "management"),
+		AAAChanges:                categoryChanges(changes, "aaa"),
+		LoggingSNMPNTPDNSChanges:  categoryChanges(changes, "observability"),
+		SwitchingChanges:          switchingChanges(changes),
+		TouchedRoutingPeers:       peers,
+		TouchedSecurityBoundaries: boundaries,
 	}
 	analysis.DetectedPlatform.RequestedVendor = requestedVendor
-	analysis.RiskFindings = riskFindings(changes, before.Blocks, after.Blocks, peers)
+	analysis.RiskFindings = riskFindings(changes, before.Blocks, after.Blocks, peers, boundaries)
 	analysis.Rollback = rollbackAnalysis(changes, analysis.RiskFindings, analysis.DetectedPlatform.Parser)
 	return analysis
 }
@@ -199,6 +201,7 @@ func touchedRules(changes []BlockChange) []TouchedRule {
 		parsed.Name = name
 		parsed.ChangeType = change.ChangeType
 		parsed.Evidence = combinedEvidence(change)
+		enrichTouchedRuleZones(&parsed, append(append([]string{}, change.BeforeLines...), change.AfterLines...), change.Header)
 		out = append(out, parsed)
 	}
 	return out
@@ -238,7 +241,7 @@ func categoryChanges(changes []BlockChange, kind string) []CategoryChange {
 	return out
 }
 
-func riskFindings(changes []BlockChange, beforeBlocks, afterBlocks []configBlock, peers []TouchedRoutingPeer) []RiskFinding {
+func riskFindings(changes []BlockChange, beforeBlocks, afterBlocks []configBlock, peers []TouchedRoutingPeer, boundaries []TouchedSecurityBoundary) []RiskFinding {
 	findings := []RiskFinding{}
 	add := func(severity, category, title, recommendation string, evidence []string, details []string) {
 		key := severity + "|" + category + "|" + title + "|" + recommendation
@@ -324,6 +327,7 @@ func riskFindings(changes []BlockChange, beforeBlocks, afterBlocks []configBlock
 		appendSwitchingFindings(add, change)
 	}
 	appendRoutingPeerFindings(add, peers)
+	appendSecurityBoundaryFindings(add, boundaries)
 	appendUndefinedReferenceFindings(add, beforeBlocks, afterBlocks)
 	for i := range findings {
 		findings[i].ID = fmt.Sprintf("RISK-%03d", i+1)

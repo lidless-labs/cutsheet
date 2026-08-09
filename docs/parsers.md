@@ -53,6 +53,14 @@ The v1 risk engine flags at least:
 - BGP/OSPF neighbor additions, removals, and remote-AS (or OSPF area)
   changes — high severity, category `routing`, backed by
   `touched_routing_peers` facts
+- Security-zone / microsegmentation boundary changes — high severity for
+  newly permitted cross-zone flows, collapsed trust boundaries, and
+  management access crossing segments; medium for zone membership changes —
+  category `security_boundary`, backed by `touched_security_boundaries`
+  facts. Touched ACL/firewall rules also carry additive `source_zone`,
+  `destination_zone`, `vrf`, `tenant`, and `policy` fields when vendors
+  expose them (PAN-OS `from`/`to`, Junos `from-zone`/`to-zone`, FortiOS
+  `srcintf`/`dstintf`).
 - ACL/firewall broadening such as `any any`, broad CIDRs, and exposed
   management ports
 - VLAN removals and interface VLAN changes
@@ -131,6 +139,13 @@ disk and writes the report bundle to the output directory. The JSON schema
   remote-AS (plus OSPF area when present on the block). Route-maps,
   prefix policies, and Junos `protocols bgp|ospf` set lines that still
   classify as generic are out of scope for this pass.
+- Security-boundary tracking covers PAN-OS security rules and zone
+  membership, Junos `from-zone`/`to-zone` policies (and
+  `security zones security-zone … interfaces`), and FortiOS
+  `srcintf`/`dstintf` policy endpoints. Cisco zone-based firewall,
+  EdgeOS/VyOS `zone-policy`, multi-vsys/Panorama hierarchy, and VRF/tenant
+  extraction beyond optional additive fields remain out of scope for this
+  pass.
 - The parser uses deterministic heuristics and may miss vendor-specific
   semantics.
 - Report prose is practical guidance, not a replacement for device-specific

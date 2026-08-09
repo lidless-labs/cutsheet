@@ -48,6 +48,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - cutsheet.dev landing page.
 - BGP/OSPF neighbors as first-class `touched_routing_peers` facts with
   add/remove/remote-AS change findings (analysis schema v1.2).
+- Security-zone and microsegmentation boundaries as first-class
+  `touched_security_boundaries` facts, plus additive zone/VRF/tenant/policy
+  fields on touched ACL/firewall rules, with findings for newly permitted
+  cross-zone flows, collapsed trust boundaries, and management access
+  crossing segments (analysis schema v1.3).
 
 ### Documentation
 

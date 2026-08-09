@@ -76,6 +76,7 @@ func renderTouchedObjects(a Analysis) string {
 	writeObjects(&b, "VPN Objects", a.TouchedVPNObjects)
 	writeSwitching(&b, a.SwitchingChanges)
 	writeRoutingPeers(&b, a.TouchedRoutingPeers)
+	writeSecurityBoundaries(&b, a.TouchedSecurityBoundaries)
 	writeCategory(&b, "Management Plane", a.ManagementPlaneChanges)
 	writeCategory(&b, "AAA And Authentication", a.AAAChanges)
 	writeCategory(&b, "Logging, SNMP, NTP, DNS", a.LoggingSNMPNTPDNSChanges)
@@ -141,6 +142,9 @@ func renderValidationPlan(a Analysis) string {
 	}
 	if len(a.TouchedRoutingPeers) > 0 {
 		b.WriteString("- Verify BGP and OSPF neighbor state, AS/area membership, and prefix exchange for touched routing peers.\n")
+	}
+	if len(a.TouchedSecurityBoundaries) > 0 {
+		b.WriteString("- Validate security-zone and microsegmentation boundaries for newly permitted cross-zone flows, collapsed trust boundaries, and management access across segments.\n")
 	}
 	if len(a.TouchedNATObjects) > 0 {
 		b.WriteString("- Validate NAT translations and session setup for affected flows.\n")
@@ -259,10 +263,12 @@ func writeRules(b *strings.Builder, items []TouchedRule) {
 		b.WriteString("None detected.\n\n")
 		return
 	}
-	b.WriteString("| Rule | Change | Action | Protocol | Source | Destination | Service |\n")
-	b.WriteString("| --- | --- | --- | --- | --- | --- | --- |\n")
+	b.WriteString("| Rule | Change | Action | Protocol | Source | Destination | Service | Source Zone | Dest Zone | Policy |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, item := range items {
-		fmt.Fprintf(b, "| `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` |\n", item.Name, item.ChangeType, item.Action, item.Protocol, item.Source, item.Destination, item.Service)
+		fmt.Fprintf(b, "| `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | %s | %s | %s |\n",
+			item.Name, item.ChangeType, item.Action, item.Protocol, item.Source, item.Destination, item.Service,
+			switchingCell(item.SourceZone), switchingCell(item.DestinationZone), switchingCell(item.Policy))
 	}
 	b.WriteString("\n")
 }
@@ -309,6 +315,32 @@ func writeRoutingPeers(b *strings.Builder, items []TouchedRoutingPeer) {
 			switchingCell(item.LocalAS),
 			switchingCell(item.RemoteAS),
 			switchingCell(item.Area),
+			switchingCell(item.Before),
+			switchingCell(item.After),
+		)
+	}
+	b.WriteString("\n")
+}
+
+func writeSecurityBoundaries(b *strings.Builder, items []TouchedSecurityBoundary) {
+	b.WriteString("## Security Boundaries\n\n")
+	if len(items) == 0 {
+		b.WriteString("None detected.\n\n")
+		return
+	}
+	b.WriteString("| Kind | Change | Source Zone | Dest Zone | Zone | Member | Action | Service | Policy | Before | After |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	for _, item := range items {
+		fmt.Fprintf(b, "| `%s` | `%s` | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n",
+			item.Kind,
+			item.ChangeType,
+			switchingCell(item.SourceZone),
+			switchingCell(item.DestinationZone),
+			switchingCell(item.Zone),
+			switchingCell(item.Member),
+			switchingCell(item.Action),
+			switchingCell(item.Service),
+			switchingCell(item.Policy),
 			switchingCell(item.Before),
 			switchingCell(item.After),
 		)

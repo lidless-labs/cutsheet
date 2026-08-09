@@ -9,20 +9,21 @@ import (
 )
 
 type goldenSummary struct {
-	Parser              string   `json:"parser"`
-	DetectedVendor      string   `json:"detected_vendor"`
-	DeviceType          string   `json:"device_type"`
-	BlockChanges        int      `json:"block_changes"`
-	TouchedInterfaces   int      `json:"touched_interfaces"`
-	TouchedVLANs        int      `json:"touched_vlans"`
-	TouchedRoutes       int      `json:"touched_routes"`
-	TouchedRules        int      `json:"touched_rules"`
-	TouchedNAT          int      `json:"touched_nat"`
-	TouchedVPN          int      `json:"touched_vpn"`
-	SwitchingChanges    int      `json:"switching_changes"`
-	TouchedRoutingPeers int      `json:"touched_routing_peers"`
-	RollbackConfidence  string   `json:"rollback_confidence"`
-	RiskTitles          []string `json:"risk_titles"`
+	Parser                    string   `json:"parser"`
+	DetectedVendor            string   `json:"detected_vendor"`
+	DeviceType                string   `json:"device_type"`
+	BlockChanges              int      `json:"block_changes"`
+	TouchedInterfaces         int      `json:"touched_interfaces"`
+	TouchedVLANs              int      `json:"touched_vlans"`
+	TouchedRoutes             int      `json:"touched_routes"`
+	TouchedRules              int      `json:"touched_rules"`
+	TouchedNAT                int      `json:"touched_nat"`
+	TouchedVPN                int      `json:"touched_vpn"`
+	SwitchingChanges          int      `json:"switching_changes"`
+	TouchedRoutingPeers       int      `json:"touched_routing_peers"`
+	TouchedSecurityBoundaries int      `json:"touched_security_boundaries"`
+	RollbackConfidence        string   `json:"rollback_confidence"`
+	RiskTitles                []string `json:"risk_titles"`
 }
 
 func TestGoldenSummaries(t *testing.T) {
@@ -87,6 +88,18 @@ func TestGoldenSummaries(t *testing.T) {
 			goldenPath: filepath.Join("..", "..", "testdata", "golden", "ospf-peers-summary.json"),
 		},
 		{
+			name:       "panos-zones",
+			beforePath: filepath.Join("..", "..", "testdata", "panos-zones-before.cfg"),
+			afterPath:  filepath.Join("..", "..", "testdata", "panos-zones-after.cfg"),
+			goldenPath: filepath.Join("..", "..", "testdata", "golden", "panos-zones-summary.json"),
+		},
+		{
+			name:       "junos-zones",
+			beforePath: filepath.Join("..", "..", "testdata", "junos-zones-before.cfg"),
+			afterPath:  filepath.Join("..", "..", "testdata", "junos-zones-after.cfg"),
+			goldenPath: filepath.Join("..", "..", "testdata", "golden", "junos-zones-summary.json"),
+		},
+		{
 			name:       "eero-forward-added",
 			beforePath: filepath.Join("..", "..", "testdata", "eero-forward-before.json"),
 			afterPath:  filepath.Join("..", "..", "testdata", "eero-forward-after.json"),
@@ -149,20 +162,21 @@ func TestGoldenSummaries(t *testing.T) {
 
 func toGoldenSummary(a Analysis) goldenSummary {
 	return goldenSummary{
-		Parser:              a.DetectedPlatform.Parser,
-		DetectedVendor:      a.DetectedPlatform.DetectedVendor,
-		DeviceType:          a.DetectedPlatform.DeviceType,
-		BlockChanges:        len(a.BlockChanges),
-		TouchedInterfaces:   len(a.TouchedInterfaces),
-		TouchedVLANs:        len(a.TouchedVLANs),
-		TouchedRoutes:       len(a.TouchedRoutes),
-		TouchedRules:        len(a.TouchedACLFirewallRules),
-		TouchedNAT:          len(a.TouchedNATObjects),
-		TouchedVPN:          len(a.TouchedVPNObjects),
-		SwitchingChanges:    len(a.SwitchingChanges),
-		TouchedRoutingPeers: len(a.TouchedRoutingPeers),
-		RollbackConfidence:  a.Rollback.Confidence,
-		RiskTitles:          riskTitles(a.RiskFindings),
+		Parser:                    a.DetectedPlatform.Parser,
+		DetectedVendor:            a.DetectedPlatform.DetectedVendor,
+		DeviceType:                a.DetectedPlatform.DeviceType,
+		BlockChanges:              len(a.BlockChanges),
+		TouchedInterfaces:         len(a.TouchedInterfaces),
+		TouchedVLANs:              len(a.TouchedVLANs),
+		TouchedRoutes:             len(a.TouchedRoutes),
+		TouchedRules:              len(a.TouchedACLFirewallRules),
+		TouchedNAT:                len(a.TouchedNATObjects),
+		TouchedVPN:                len(a.TouchedVPNObjects),
+		SwitchingChanges:          len(a.SwitchingChanges),
+		TouchedRoutingPeers:       len(a.TouchedRoutingPeers),
+		TouchedSecurityBoundaries: len(a.TouchedSecurityBoundaries),
+		RollbackConfidence:        a.Rollback.Confidence,
+		RiskTitles:                riskTitles(a.RiskFindings),
 	}
 }
 

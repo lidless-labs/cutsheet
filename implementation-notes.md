@@ -577,3 +577,17 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   reference was removed, or when the same dangling key already existed in the
   before state. Names match case-insensitively. Detail/evidence ordering is
   sorted for stable RISK-* IDs.
+
+## 2026-08-09 - BGP/OSPF peers as first-class objects (issue 23)
+
+- Added additive `touched_routing_peers` facts and bumped the analysis schema
+  to `1.2`. Peers are extracted semantically from existing `routing:*` blocks
+  (Cisco/FRR multiline `router bgp|ospf`, EdgeOS/VyOS `set protocols bgp|ospf`)
+  so block IDs and fingerprints stay stable for concurrent workstreams.
+- Core change detection covers neighbor add/remove plus BGP remote-AS (and
+  OSPF area when present). Findings reuse category `routing` with specific
+  titles (`BGP neighbor added|removed`, `BGP remote-AS changed`,
+  `OSPF neighbor added|removed`) at high severity.
+- Fixtures: `testdata/bgp-peers-*.cfg`, `testdata/ospf-peers-*.cfg`, plus
+  matching golden summaries. Markdown/HTML reports gain a Routing Peers
+  section and validation checklist item when peers are touched.

@@ -32,6 +32,10 @@ Supported deterministic extraction includes:
   BPDU guard, EtherChannel/port-channel, VTP, and storm-control
 - static routes and default routes
 - route next-hop changes where detectable
+- BGP and OSPF neighbors as first-class routing peers (add/remove and
+  core parameter changes such as remote-AS), extracted from Cisco-style
+  `router bgp|ospf` blocks and EdgeOS/VyOS `set protocols bgp|ospf`
+  neighbor lines
 - ACL/firewall-style permit and deny rules, including first-pass
   action/protocol/source/destination/service extraction
 - NAT-like objects and lines
@@ -46,6 +50,9 @@ The v1 risk engine flags at least:
 
 - default route changes
 - route removals
+- BGP/OSPF neighbor additions, removals, and remote-AS (or OSPF area)
+  changes — high severity, category `routing`, backed by
+  `touched_routing_peers` facts
 - ACL/firewall broadening such as `any any`, broad CIDRs, and exposed
   management ports
 - VLAN removals and interface VLAN changes
@@ -120,6 +127,10 @@ disk and writes the report bundle to the output directory. The JSON schema
 - Fortinet support is an initial deterministic parser path for FortiOS
   `config`/`edit` blocks, not full semantic emulation of every platform
   feature.
+- BGP/OSPF peer tracking covers explicit neighbor statements and BGP
+  remote-AS (plus OSPF area when present on the block). Route-maps,
+  prefix policies, and Junos `protocols bgp|ospf` set lines that still
+  classify as generic are out of scope for this pass.
 - The parser uses deterministic heuristics and may miss vendor-specific
   semantics.
 - Report prose is practical guidance, not a replacement for device-specific

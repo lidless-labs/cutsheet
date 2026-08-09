@@ -17,11 +17,12 @@
     "aaa_changes",
     "logging_snmp_ntp_dns_changes",
     "switching_changes",
+    "touched_routing_peers",
     "risk_findings",
     "rollback"
   ],
   "properties": {
-    "schema_version": { "type": "string", "enum": ["1.1"] },
+    "schema_version": { "type": "string", "enum": ["1.2"] },
     "detected_platform": {
       "type": "object",
       "required": ["requested_vendor", "parser", "detected_vendor", "device_type", "confidence", "signals"],
@@ -45,6 +46,7 @@
     "aaa_changes": { "type": "array", "items": { "$ref": "#/$defs/category_change" } },
     "logging_snmp_ntp_dns_changes": { "type": "array", "items": { "$ref": "#/$defs/category_change" } },
     "switching_changes": { "type": "array", "items": { "$ref": "#/$defs/switching_change" } },
+    "touched_routing_peers": { "type": "array", "items": { "$ref": "#/$defs/touched_routing_peer" } },
     "risk_findings": { "type": "array", "items": { "$ref": "#/$defs/risk_finding" } },
     "rollback": {
       "type": "object",
@@ -139,6 +141,21 @@
       "properties": {
         "category": { "type": "string" },
         "subject": { "type": "string" },
+        "change_type": { "type": "string", "enum": ["added", "removed", "changed"] },
+        "before": { "type": "string" },
+        "after": { "type": "string" },
+        "evidence": { "$ref": "#/$defs/string_array" }
+      }
+    },
+    "touched_routing_peer": {
+      "type": "object",
+      "required": ["protocol", "peer", "change_type", "evidence"],
+      "properties": {
+        "protocol": { "type": "string", "enum": ["bgp", "ospf"] },
+        "peer": { "type": "string" },
+        "local_as": { "type": "string" },
+        "remote_as": { "type": "string" },
+        "area": { "type": "string" },
         "change_type": { "type": "string", "enum": ["added", "removed", "changed"] },
         "before": { "type": "string" },
         "after": { "type": "string" },

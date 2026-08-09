@@ -20,6 +20,7 @@ type goldenSummary struct {
 	TouchedNAT         int      `json:"touched_nat"`
 	TouchedVPN         int      `json:"touched_vpn"`
 	SwitchingChanges   int      `json:"switching_changes"`
+	TouchedRoutingPeers int     `json:"touched_routing_peers"`
 	RollbackConfidence string   `json:"rollback_confidence"`
 	RiskTitles         []string `json:"risk_titles"`
 }
@@ -72,6 +73,18 @@ func TestGoldenSummaries(t *testing.T) {
 			beforePath: filepath.Join("..", "..", "testdata", "unifi-before.json"),
 			afterPath:  filepath.Join("..", "..", "testdata", "unifi-after.json"),
 			goldenPath: filepath.Join("..", "..", "testdata", "golden", "unifi-summary.json"),
+		},
+		{
+			name:       "bgp-peers",
+			beforePath: filepath.Join("..", "..", "testdata", "bgp-peers-before.cfg"),
+			afterPath:  filepath.Join("..", "..", "testdata", "bgp-peers-after.cfg"),
+			goldenPath: filepath.Join("..", "..", "testdata", "golden", "bgp-peers-summary.json"),
+		},
+		{
+			name:       "ospf-peers",
+			beforePath: filepath.Join("..", "..", "testdata", "ospf-peers-before.cfg"),
+			afterPath:  filepath.Join("..", "..", "testdata", "ospf-peers-after.cfg"),
+			goldenPath: filepath.Join("..", "..", "testdata", "golden", "ospf-peers-summary.json"),
 		},
 		{
 			name:       "eero-forward-added",
@@ -147,6 +160,7 @@ func toGoldenSummary(a Analysis) goldenSummary {
 		TouchedNAT:         len(a.TouchedNATObjects),
 		TouchedVPN:         len(a.TouchedVPNObjects),
 		SwitchingChanges:   len(a.SwitchingChanges),
+		TouchedRoutingPeers: len(a.TouchedRoutingPeers),
 		RollbackConfidence: a.Rollback.Confidence,
 		RiskTitles:         riskTitles(a.RiskFindings),
 	}

@@ -423,6 +423,7 @@ func writeHTMLTouchedObjects(b *strings.Builder, a Analysis) {
 	writeObjectCard(b, "NAT", objectItems(a.TouchedNATObjects))
 	writeObjectCard(b, "VPN", objectItems(a.TouchedVPNObjects))
 	writeObjectCard(b, "Switching / L2", switchingItems(a.SwitchingChanges))
+	writeObjectCard(b, "Routing Peers", routingPeerItems(a.TouchedRoutingPeers))
 	writeObjectCard(b, "Management", categoryItems(a.ManagementPlaneChanges))
 	writeObjectCard(b, "AAA / Auth", categoryItems(a.AAAChanges))
 	writeObjectCard(b, "Monitoring", categoryItems(a.LoggingSNMPNTPDNSChanges))
@@ -497,6 +498,9 @@ func writeHTMLValidationAndChecklist(b *strings.Builder, a Analysis) {
 	}
 	if len(a.SwitchingChanges) > 0 {
 		writeValidationItem(b, "Verify spanning-tree topology, EtherChannel bundling, VTP mode, and trunk/native VLAN scope.")
+	}
+	if len(a.TouchedRoutingPeers) > 0 {
+		writeValidationItem(b, "Verify BGP and OSPF neighbor state, AS/area membership, and prefix exchange for touched routing peers.")
 	}
 	if len(a.TouchedNATObjects) > 0 {
 		writeValidationItem(b, "Validate NAT translations and session setup for affected flows.")
@@ -705,6 +709,7 @@ func touchedObjectTotal(a Analysis) int {
 		len(a.TouchedNATObjects) +
 		len(a.TouchedVPNObjects) +
 		len(a.SwitchingChanges) +
+		len(a.TouchedRoutingPeers) +
 		len(a.ManagementPlaneChanges) +
 		len(a.AAAChanges) +
 		len(a.LoggingSNMPNTPDNSChanges)
@@ -769,6 +774,21 @@ func switchingItems(items []SwitchingChange) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
 		out = append(out, item.Category+" "+item.Subject+" - "+item.ChangeType)
+	}
+	return out
+}
+
+func routingPeerItems(items []TouchedRoutingPeer) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		label := item.Protocol + " " + item.Peer + " - " + item.ChangeType
+		if item.RemoteAS != "" {
+			label += " remote-as " + item.RemoteAS
+		}
+		if item.Area != "" {
+			label += " area " + item.Area
+		}
+		out = append(out, label)
 	}
 	return out
 }

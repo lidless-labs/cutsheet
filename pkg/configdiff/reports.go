@@ -75,6 +75,7 @@ func renderTouchedObjects(a Analysis) string {
 	writeObjects(&b, "NAT Objects", a.TouchedNATObjects)
 	writeObjects(&b, "VPN Objects", a.TouchedVPNObjects)
 	writeSwitching(&b, a.SwitchingChanges)
+	writeRoutingPeers(&b, a.TouchedRoutingPeers)
 	writeCategory(&b, "Management Plane", a.ManagementPlaneChanges)
 	writeCategory(&b, "AAA And Authentication", a.AAAChanges)
 	writeCategory(&b, "Logging, SNMP, NTP, DNS", a.LoggingSNMPNTPDNSChanges)
@@ -137,6 +138,9 @@ func renderValidationPlan(a Analysis) string {
 	}
 	if len(a.SwitchingChanges) > 0 {
 		b.WriteString("- Verify spanning-tree topology and root bridge, EtherChannel bundling, VTP domain/mode, and trunk/native VLAN scope for touched switching constructs.\n")
+	}
+	if len(a.TouchedRoutingPeers) > 0 {
+		b.WriteString("- Verify BGP and OSPF neighbor state, AS/area membership, and prefix exchange for touched routing peers.\n")
 	}
 	if len(a.TouchedNATObjects) > 0 {
 		b.WriteString("- Validate NAT translations and session setup for affected flows.\n")
@@ -285,6 +289,29 @@ func writeSwitching(b *strings.Builder, items []SwitchingChange) {
 	b.WriteString("| --- | --- | --- | --- | --- |\n")
 	for _, item := range items {
 		fmt.Fprintf(b, "| `%s` | `%s` | `%s` | %s | %s |\n", item.Category, item.Subject, item.ChangeType, switchingCell(item.Before), switchingCell(item.After))
+	}
+	b.WriteString("\n")
+}
+
+func writeRoutingPeers(b *strings.Builder, items []TouchedRoutingPeer) {
+	b.WriteString("## Routing Peers\n\n")
+	if len(items) == 0 {
+		b.WriteString("None detected.\n\n")
+		return
+	}
+	b.WriteString("| Protocol | Peer | Change | Local AS | Remote AS | Area | Before | After |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	for _, item := range items {
+		fmt.Fprintf(b, "| `%s` | `%s` | `%s` | %s | %s | %s | %s | %s |\n",
+			item.Protocol,
+			item.Peer,
+			item.ChangeType,
+			switchingCell(item.LocalAS),
+			switchingCell(item.RemoteAS),
+			switchingCell(item.Area),
+			switchingCell(item.Before),
+			switchingCell(item.After),
+		)
 	}
 	b.WriteString("\n")
 }

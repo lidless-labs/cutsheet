@@ -46,6 +46,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Version injection: `make build`, `make docker-build`, and the compose
   build report `git describe` (or `$VERSION`) via `/healthz`.
 - cutsheet.dev landing page.
+- BGP/OSPF neighbors as first-class `touched_routing_peers` facts with
+  add/remove/remote-AS change findings (analysis schema v1.2).
 
 ### Documentation
 

@@ -20,8 +20,8 @@ func TestExplainProducesStructuredAnalysisAndReports(t *testing.T) {
 		t.Fatalf("Explain returned error: %v", err)
 	}
 
-	if result.Analysis.SchemaVersion != "1.1" {
-		t.Fatalf("schema version = %q, want 1.1", result.Analysis.SchemaVersion)
+	if result.Analysis.SchemaVersion != "1.2" {
+		t.Fatalf("schema version = %q, want 1.2", result.Analysis.SchemaVersion)
 	}
 	if result.Analysis.DetectedPlatform.Parser != "cisco-ios" {
 		t.Fatalf("parser = %q, want cisco-ios", result.Analysis.DetectedPlatform.Parser)

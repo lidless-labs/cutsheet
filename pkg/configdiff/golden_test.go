@@ -9,19 +9,20 @@ import (
 )
 
 type goldenSummary struct {
-	Parser             string   `json:"parser"`
-	DetectedVendor     string   `json:"detected_vendor"`
-	DeviceType         string   `json:"device_type"`
-	BlockChanges       int      `json:"block_changes"`
-	TouchedInterfaces  int      `json:"touched_interfaces"`
-	TouchedVLANs       int      `json:"touched_vlans"`
-	TouchedRoutes      int      `json:"touched_routes"`
-	TouchedRules       int      `json:"touched_rules"`
-	TouchedNAT         int      `json:"touched_nat"`
-	TouchedVPN         int      `json:"touched_vpn"`
-	SwitchingChanges   int      `json:"switching_changes"`
-	RollbackConfidence string   `json:"rollback_confidence"`
-	RiskTitles         []string `json:"risk_titles"`
+	Parser              string   `json:"parser"`
+	DetectedVendor      string   `json:"detected_vendor"`
+	DeviceType          string   `json:"device_type"`
+	BlockChanges        int      `json:"block_changes"`
+	TouchedInterfaces   int      `json:"touched_interfaces"`
+	TouchedVLANs        int      `json:"touched_vlans"`
+	TouchedRoutes       int      `json:"touched_routes"`
+	TouchedRules        int      `json:"touched_rules"`
+	TouchedNAT          int      `json:"touched_nat"`
+	TouchedVPN          int      `json:"touched_vpn"`
+	SwitchingChanges    int      `json:"switching_changes"`
+	TouchedRoutingPeers int      `json:"touched_routing_peers"`
+	RollbackConfidence  string   `json:"rollback_confidence"`
+	RiskTitles          []string `json:"risk_titles"`
 }
 
 func TestGoldenSummaries(t *testing.T) {
@@ -72,6 +73,18 @@ func TestGoldenSummaries(t *testing.T) {
 			beforePath: filepath.Join("..", "..", "testdata", "unifi-before.json"),
 			afterPath:  filepath.Join("..", "..", "testdata", "unifi-after.json"),
 			goldenPath: filepath.Join("..", "..", "testdata", "golden", "unifi-summary.json"),
+		},
+		{
+			name:       "bgp-peers",
+			beforePath: filepath.Join("..", "..", "testdata", "bgp-peers-before.cfg"),
+			afterPath:  filepath.Join("..", "..", "testdata", "bgp-peers-after.cfg"),
+			goldenPath: filepath.Join("..", "..", "testdata", "golden", "bgp-peers-summary.json"),
+		},
+		{
+			name:       "ospf-peers",
+			beforePath: filepath.Join("..", "..", "testdata", "ospf-peers-before.cfg"),
+			afterPath:  filepath.Join("..", "..", "testdata", "ospf-peers-after.cfg"),
+			goldenPath: filepath.Join("..", "..", "testdata", "golden", "ospf-peers-summary.json"),
 		},
 		{
 			name:       "eero-forward-added",
@@ -136,19 +149,20 @@ func TestGoldenSummaries(t *testing.T) {
 
 func toGoldenSummary(a Analysis) goldenSummary {
 	return goldenSummary{
-		Parser:             a.DetectedPlatform.Parser,
-		DetectedVendor:     a.DetectedPlatform.DetectedVendor,
-		DeviceType:         a.DetectedPlatform.DeviceType,
-		BlockChanges:       len(a.BlockChanges),
-		TouchedInterfaces:  len(a.TouchedInterfaces),
-		TouchedVLANs:       len(a.TouchedVLANs),
-		TouchedRoutes:      len(a.TouchedRoutes),
-		TouchedRules:       len(a.TouchedACLFirewallRules),
-		TouchedNAT:         len(a.TouchedNATObjects),
-		TouchedVPN:         len(a.TouchedVPNObjects),
-		SwitchingChanges:   len(a.SwitchingChanges),
-		RollbackConfidence: a.Rollback.Confidence,
-		RiskTitles:         riskTitles(a.RiskFindings),
+		Parser:              a.DetectedPlatform.Parser,
+		DetectedVendor:      a.DetectedPlatform.DetectedVendor,
+		DeviceType:          a.DetectedPlatform.DeviceType,
+		BlockChanges:        len(a.BlockChanges),
+		TouchedInterfaces:   len(a.TouchedInterfaces),
+		TouchedVLANs:        len(a.TouchedVLANs),
+		TouchedRoutes:       len(a.TouchedRoutes),
+		TouchedRules:        len(a.TouchedACLFirewallRules),
+		TouchedNAT:          len(a.TouchedNATObjects),
+		TouchedVPN:          len(a.TouchedVPNObjects),
+		SwitchingChanges:    len(a.SwitchingChanges),
+		TouchedRoutingPeers: len(a.TouchedRoutingPeers),
+		RollbackConfidence:  a.Rollback.Confidence,
+		RiskTitles:          riskTitles(a.RiskFindings),
 	}
 }
 

@@ -10,8 +10,9 @@ import (
 
 func analyze(before, after parsedConfig, requestedVendor string) Analysis {
 	changes := diffBlocks(before.Blocks, after.Blocks)
+	peers := routingPeerChanges(changes)
 	analysis := Analysis{
-		SchemaVersion:            "1.1",
+		SchemaVersion:            "1.2",
 		DetectedPlatform:         after.Detection,
 		BlockChanges:             changes,
 		TouchedInterfaces:        touchedInterfaces(changes),
@@ -24,9 +25,10 @@ func analyze(before, after parsedConfig, requestedVendor string) Analysis {
 		AAAChanges:               categoryChanges(changes, "aaa"),
 		LoggingSNMPNTPDNSChanges: categoryChanges(changes, "observability"),
 		SwitchingChanges:         switchingChanges(changes),
+		TouchedRoutingPeers:      peers,
 	}
 	analysis.DetectedPlatform.RequestedVendor = requestedVendor
-	analysis.RiskFindings = riskFindings(changes, before.Blocks, after.Blocks)
+	analysis.RiskFindings = riskFindings(changes, before.Blocks, after.Blocks, peers)
 	analysis.Rollback = rollbackAnalysis(changes, analysis.RiskFindings, analysis.DetectedPlatform.Parser)
 	return analysis
 }
@@ -236,7 +238,7 @@ func categoryChanges(changes []BlockChange, kind string) []CategoryChange {
 	return out
 }
 
-func riskFindings(changes []BlockChange, beforeBlocks, afterBlocks []configBlock) []RiskFinding {
+func riskFindings(changes []BlockChange, beforeBlocks, afterBlocks []configBlock, peers []TouchedRoutingPeer) []RiskFinding {
 	findings := []RiskFinding{}
 	add := func(severity, category, title, recommendation string, evidence []string, details []string) {
 		key := severity + "|" + category + "|" + title + "|" + recommendation
@@ -321,6 +323,7 @@ func riskFindings(changes []BlockChange, beforeBlocks, afterBlocks []configBlock
 		}
 		appendSwitchingFindings(add, change)
 	}
+	appendRoutingPeerFindings(add, peers)
 	appendUndefinedReferenceFindings(add, beforeBlocks, afterBlocks)
 	for i := range findings {
 		findings[i].ID = fmt.Sprintf("RISK-%03d", i+1)

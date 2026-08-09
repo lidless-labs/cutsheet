@@ -11,6 +11,8 @@ Closed issues and major v1 capabilities already in the tree:
 - [#17](https://github.com/lidless-labs/cutsheet/issues/17) eero `session_token` in API redaction list (closed)
 - [#18](https://github.com/lidless-labs/cutsheet/issues/18) remove server filesystem paths from outbound notifications (closed)
 - [#19](https://github.com/lidless-labs/cutsheet/issues/19) Go module identity at `github.com/lidless-labs/cutsheet` (closed)
+- [#21](https://github.com/lidless-labs/cutsheet/issues/21) validate undefined-but-referenced config structures (dangling ACL and route-map references)
+- [#23](https://github.com/lidless-labs/cutsheet/issues/23) track BGP/OSPF peers as first-class objects
 - [#25](https://github.com/lidless-labs/cutsheet/issues/25) README render markers, purity contract, preflight docs, stale notes (closed)
 - Syslog-triggered snapshots with UDP listener, debounce, and cooldown (see README Syslog-triggered snapshots)
 - [#22](https://github.com/lidless-labs/cutsheet/issues/22) attribute config changes to users via syslog audit events
@@ -30,10 +32,8 @@ Reliability and UI bugs queued for the next fix slice:
 
 ## Next
 
-Enhancement backlog sized for single implementation slices:
-
-- [#21](https://github.com/lidless-labs/cutsheet/issues/21) validate undefined-but-referenced config structures (dangling ACL and route-map references)
-- [#23](https://github.com/lidless-labs/cutsheet/issues/23) track BGP/OSPF peers as first-class objects
+Enhancement backlog sized for single implementation slices: nothing queued;
+open a GitHub issue to add a slice.
 
 ## Deferred
 

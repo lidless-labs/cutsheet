@@ -10,6 +10,7 @@
   "touched_nat": 1,
   "touched_vpn": 2,
   "switching_changes": 0,
+  "touched_routing_peers": 0,
   "rollback_confidence": "risky",
   "risk_titles": [
     "AAA or authentication changed",

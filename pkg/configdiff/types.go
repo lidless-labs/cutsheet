@@ -13,21 +13,22 @@ type Result struct {
 }
 
 type Analysis struct {
-	SchemaVersion            string             `json:"schema_version"`
-	DetectedPlatform         DetectedPlatform   `json:"detected_platform"`
-	BlockChanges             []BlockChange      `json:"block_changes"`
-	TouchedInterfaces        []TouchedInterface `json:"touched_interfaces"`
-	TouchedVLANs             []TouchedVLAN      `json:"touched_vlans"`
-	TouchedRoutes            []TouchedRoute     `json:"touched_routes"`
-	TouchedACLFirewallRules  []TouchedRule      `json:"touched_acl_firewall_rules"`
-	TouchedNATObjects        []TouchedObject    `json:"touched_nat_objects"`
-	TouchedVPNObjects        []TouchedObject    `json:"touched_vpn_objects"`
-	ManagementPlaneChanges   []CategoryChange   `json:"management_plane_changes"`
-	AAAChanges               []CategoryChange   `json:"aaa_changes"`
-	LoggingSNMPNTPDNSChanges []CategoryChange   `json:"logging_snmp_ntp_dns_changes"`
-	SwitchingChanges         []SwitchingChange  `json:"switching_changes"`
-	RiskFindings             []RiskFinding      `json:"risk_findings"`
-	Rollback                 RollbackAnalysis   `json:"rollback"`
+	SchemaVersion            string               `json:"schema_version"`
+	DetectedPlatform         DetectedPlatform     `json:"detected_platform"`
+	BlockChanges             []BlockChange        `json:"block_changes"`
+	TouchedInterfaces        []TouchedInterface   `json:"touched_interfaces"`
+	TouchedVLANs             []TouchedVLAN        `json:"touched_vlans"`
+	TouchedRoutes            []TouchedRoute       `json:"touched_routes"`
+	TouchedACLFirewallRules  []TouchedRule        `json:"touched_acl_firewall_rules"`
+	TouchedNATObjects        []TouchedObject      `json:"touched_nat_objects"`
+	TouchedVPNObjects        []TouchedObject      `json:"touched_vpn_objects"`
+	ManagementPlaneChanges   []CategoryChange     `json:"management_plane_changes"`
+	AAAChanges               []CategoryChange     `json:"aaa_changes"`
+	LoggingSNMPNTPDNSChanges []CategoryChange     `json:"logging_snmp_ntp_dns_changes"`
+	SwitchingChanges         []SwitchingChange    `json:"switching_changes"`
+	TouchedRoutingPeers      []TouchedRoutingPeer `json:"touched_routing_peers"`
+	RiskFindings             []RiskFinding        `json:"risk_findings"`
+	Rollback                 RollbackAnalysis     `json:"rollback"`
 }
 
 // SwitchingChange captures a Layer 2 switching construct that changed between the
@@ -37,6 +38,21 @@ type Analysis struct {
 type SwitchingChange struct {
 	Category   string   `json:"category"`
 	Subject    string   `json:"subject"`
+	ChangeType string   `json:"change_type"`
+	Before     string   `json:"before,omitempty"`
+	After      string   `json:"after,omitempty"`
+	Evidence   []string `json:"evidence"`
+}
+
+// TouchedRoutingPeer captures a BGP or OSPF neighbor that was added, removed, or
+// had a core parameter change (remote-AS for BGP, area for OSPF). Peers are extracted
+// semantically from existing routing blocks rather than reshaping block IDs.
+type TouchedRoutingPeer struct {
+	Protocol   string   `json:"protocol"`
+	Peer       string   `json:"peer"`
+	LocalAS    string   `json:"local_as,omitempty"`
+	RemoteAS   string   `json:"remote_as,omitempty"`
+	Area       string   `json:"area,omitempty"`
 	ChangeType string   `json:"change_type"`
 	Before     string   `json:"before,omitempty"`
 	After      string   `json:"after,omitempty"`

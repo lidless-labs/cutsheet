@@ -847,6 +847,9 @@ func isDefaultRouteLine(line string) bool {
 
 func aclBroadeningLine(line string) bool {
 	lower := strings.ToLower(line)
+	if isNegatedCommand(lower) {
+		return false
+	}
 	return (strings.HasPrefix(lower, "permit ") || strings.Contains(lower, " permit ")) &&
 		(strings.Contains(lower, " any any") ||
 			strings.Contains(lower, " 0.0.0.0/0") ||
@@ -933,6 +936,9 @@ func fortinetBroadeningLines(lines []string) bool {
 
 func exposesManagementPort(line string) bool {
 	lower := strings.ToLower(line)
+	if isNegatedCommand(lower) {
+		return false
+	}
 	if !strings.Contains(lower, "permit") && !strings.Contains(lower, "allow") {
 		return false
 	}

@@ -611,7 +611,7 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   matching golden summaries. Markdown/HTML reports gain a Routing Peers
   section and validation checklist item when peers are touched.
 
-## 2026-08-08 - Retry post-snapshot processing (#15)
+## 2026-08-19 - Golden-state compliance and baseline drift (issue 20)
 
 - **Root cause.** `SnapshotStore.Save` committed observed config to git HEAD
   before `pipeline.HandleChange` finished. Scheduler and on-demand paths only
@@ -674,3 +674,26 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   unit coverage. Runner: `node --experimental-strip-types --test
   "src/**/*.test.ts"` (`npm --prefix web test`). Wired into `./scripts/verify`
   and the CI `web` job so the regression is not orphaned.
+
+- Added the pure, additive `pkg/configdiff.EvaluatePolicy` API. A versioned
+  `DesiredStatePolicy` declares required and forbidden VLANs, routes,
+  management services, AAA statements, and firewall property text. Existing
+  `AnalyzeContent` and `Explain` behavior and schema remain unchanged.
+- Each result retains separate `current`, `predecessor`, and
+  `selected_baseline` evaluations, plus deterministic current-to-predecessor
+  and current-to-selected-baseline comparisons. Each comparison lists
+  introduced and resolved findings by category, expectation, normalized
+  requirement, and status, independent of evidence ordering. The policy
+  version is included at the result, evaluation, comparison, and individual-
+  finding levels, so records remain interpretable after a policy is revised.
+- Policy facts are extracted from active statements only. A leading Cisco
+  `no ` is rejected before management, route, AAA, VLAN, or firewall facts are
+  inventoried. Firewall facts are read from parser-selected ACL/firewall
+  blocks, including Cisco named ACL bodies. The same guard closes existing
+  false-positive paths for management exposure, ACL broadening, trunk-all-VLAN
+  detection, and enabled spanning-tree features, while command-level change
+  tracking still retains explicit removal commands.
+- Policy output has no timestamps or map-backed output fields. Requirements,
+  findings, comparisons, and evidence are sorted before marshaling to preserve
+  stable JSON bytes for identical inputs. Policy values are normalized before
+  deduplication, so casing and whitespace variants produce one finding.

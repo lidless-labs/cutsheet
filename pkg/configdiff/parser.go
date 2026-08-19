@@ -970,6 +970,9 @@ func isAAAAuthLine(lower string) bool {
 }
 
 func isManagementLine(lower string) bool {
+	if isNegatedCommand(lower) {
+		return false
+	}
 	return strings.Contains(lower, "ssh") ||
 		strings.Contains(lower, "telnet") ||
 		strings.Contains(lower, "http server") ||

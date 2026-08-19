@@ -610,3 +610,44 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
 - Fixtures: `testdata/bgp-peers-*.cfg`, `testdata/ospf-peers-*.cfg`, plus
   matching golden summaries. Markdown/HTML reports gain a Routing Peers
   section and validation checklist item when peers are touched.
+
+## 2026-08-08 - Retry post-snapshot processing (#15)
+
+- **Root cause.** `SnapshotStore.Save` committed observed config to git HEAD
+  before `pipeline.HandleChange` finished. Scheduler and on-demand paths only
+  call processing when `SaveResult.Changed` is true, and identical content
+  returned `Changed=false`, so a transient report/DB failure permanently
+  skipped that change on later polls.
+- **Recovery design: durable processing cursor, not pending marker / rollback.**
+  Each device has an untracked `devices/<id>/.processing-cursor` JSON file
+  (`last_processed_commit`) written atomically at mode 0600. The cursor is
+  persisted *before* a new git commit so a crash after commit cannot make
+  identical HEAD content look processed. `Save` returns `Changed=true` while
+  HEAD is ahead of the cursor, with `Prev*` taken from the cursor baseline.
+  `MarkProcessed(deviceID, commitHash)` advances the cursor only when
+  `commitHash` is the device's current HEAD commit. Rollback was rejected: it
+  would drop the observed commit from history and still lose the change on a
+  crash between commit and rollback.
+- **Supersede semantics.** If A is unprocessed and B arrives, analysis uses
+  last-processed P→B (not A→B), so P→A is not dropped from the reported
+  timeline. Intermediate A remains in git history.
+- **Upgrade / recovery.** Missing cursor + identical HEAD seeds
+  `last_processed=HEAD` (safe for pre-feature repos). Corrupt or stale cursors
+  are rewritten conservatively behind HEAD so work is retried, never silently
+  skipped. Legacy `.pending-processing` sidecars migrate to a cursor whose
+  baseline is the pending `prev_commit_hash`, then the sidecar is removed.
+- **Promotion point.** Shared `makeProcessChange` (scheduler + snapshot-now)
+  and the demo seeder call `MarkProcessed` only after `HandleChange` succeeds.
+  Notify remains best-effort and does not hold the cursor back; a recorded
+  change must not be re-analyzed forever because a webhook timed out.
+  Duplicate change rows remain possible if the process crashes after
+  `RecordChange` but before `MarkProcessed` (no unique constraint on commit
+  hash yet). Lane E notification/report-path redaction notes are unchanged.
+- **Real-path HandleChange failure fixture.** Scheduler and snapshot-now
+  regression tests plant `reportsDir` as a regular file so nested
+  `MkdirAll(reportsDir/<device>/...)` fails with ENOTDIR (`not a directory`).
+  That shape is root-stable; `chmod 0555` on the reports directory is not
+  (root can still create children). Assertions require the first attempt to
+  surface that pipeline error before the blocker is replaced with a directory
+  and the identical retry succeeds. Test-only; GraphTrail impact unchanged
+  (`changed_symbols=0`, `edge_churn=0`).

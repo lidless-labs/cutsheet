@@ -263,6 +263,12 @@ func makeProcessChange(snaps *snapshots.SnapshotStore, pipe *pipeline.Pipeline, 
 		if err != nil {
 			return store.Change{}, err
 		}
+		// Advance the snapshot processing cursor only after the change record
+		// is complete. Notify failures stay best-effort and must not re-queue
+		// analysis for an already-recorded commit.
+		if err := snaps.MarkProcessed(device.ID, result.CommitHash); err != nil {
+			return store.Change{}, fmt.Errorf("mark snapshot processed for commit %s: %w", result.CommitHash, err)
+		}
 		logger.Info("config change recorded",
 			"device", device.ID,
 			"severity", change.MaxSeverity,

@@ -18,11 +18,12 @@
     "logging_snmp_ntp_dns_changes",
     "switching_changes",
     "touched_routing_peers",
+    "touched_security_boundaries",
     "risk_findings",
     "rollback"
   ],
   "properties": {
-    "schema_version": { "type": "string", "enum": ["1.2"] },
+    "schema_version": { "type": "string", "enum": ["1.3"] },
     "detected_platform": {
       "type": "object",
       "required": ["requested_vendor", "parser", "detected_vendor", "device_type", "confidence", "signals"],
@@ -47,6 +48,7 @@
     "logging_snmp_ntp_dns_changes": { "type": "array", "items": { "$ref": "#/$defs/category_change" } },
     "switching_changes": { "type": "array", "items": { "$ref": "#/$defs/switching_change" } },
     "touched_routing_peers": { "type": "array", "items": { "$ref": "#/$defs/touched_routing_peer" } },
+    "touched_security_boundaries": { "type": "array", "items": { "$ref": "#/$defs/touched_security_boundary" } },
     "risk_findings": { "type": "array", "items": { "$ref": "#/$defs/risk_finding" } },
     "rollback": {
       "type": "object",
@@ -112,6 +114,11 @@
         "source": { "type": "string" },
         "destination": { "type": "string" },
         "service": { "type": "string" },
+        "source_zone": { "type": "string" },
+        "destination_zone": { "type": "string" },
+        "vrf": { "type": "string" },
+        "tenant": { "type": "string" },
+        "policy": { "type": "string" },
         "change_type": { "type": "string" },
         "evidence": { "$ref": "#/$defs/string_array" }
       }
@@ -156,6 +163,27 @@
         "local_as": { "type": "string" },
         "remote_as": { "type": "string" },
         "area": { "type": "string" },
+        "change_type": { "type": "string", "enum": ["added", "removed", "changed"] },
+        "before": { "type": "string" },
+        "after": { "type": "string" },
+        "evidence": { "$ref": "#/$defs/string_array" }
+      }
+    },
+    "touched_security_boundary": {
+      "type": "object",
+      "required": ["kind", "change_type", "evidence"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["zone_flow", "zone_membership"] },
+        "source_zone": { "type": "string" },
+        "destination_zone": { "type": "string" },
+        "zone": { "type": "string" },
+        "member": { "type": "string" },
+        "action": { "type": "string" },
+        "protocol": { "type": "string" },
+        "service": { "type": "string" },
+        "policy": { "type": "string" },
+        "vrf": { "type": "string" },
+        "tenant": { "type": "string" },
         "change_type": { "type": "string", "enum": ["added", "removed", "changed"] },
         "before": { "type": "string" },
         "after": { "type": "string" },

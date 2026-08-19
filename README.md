@@ -314,7 +314,7 @@ cutsheet-cli preflight --current running.cfg --candidate proposed.cfg --vendor a
 findings and rollback confidence (or JSON with `--json`) and does not write
 a report or touch any store or git history.
 
-The `explain` bundle contains `diff-analysis.json` (stable schema v1.2),
+The `explain` bundle contains `diff-analysis.json` (stable schema v1.3),
 `change-summary.md`, `risk-analysis.md`, `touched-objects.md`,
 `rollback-plan.md`, `validation-plan.md`, `operator-checklist.md`,
 `stakeholder-brief.md`, and `report.html` for browser review.

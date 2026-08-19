@@ -1,0 +1,24 @@
+{
+  "parser": "panos",
+  "detected_vendor": "paloalto",
+  "device_type": "firewall",
+  "block_changes": 3,
+  "touched_interfaces": 1,
+  "touched_vlans": 0,
+  "touched_routes": 0,
+  "touched_rules": 2,
+  "touched_nat": 0,
+  "touched_vpn": 0,
+  "switching_changes": 0,
+  "touched_routing_peers": 0,
+  "touched_security_boundaries": 3,
+  "rollback_confidence": "risky",
+  "risk_titles": [
+    "ACL or firewall rule appears broadened",
+    "Management service may be exposed",
+    "Newly permitted cross-zone flow",
+    "Management access crosses segments",
+    "Trust boundary collapsed",
+    "Security zone membership changed"
+  ]
+}

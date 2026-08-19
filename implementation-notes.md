@@ -610,3 +610,19 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
 - Fixtures: `testdata/bgp-peers-*.cfg`, `testdata/ospf-peers-*.cfg`, plus
   matching golden summaries. Markdown/HTML reports gain a Routing Peers
   section and validation checklist item when peers are touched.
+
+## 2026-08-09 - Security-zone / microsegmentation boundaries (issue 24)
+
+- Added additive `touched_security_boundaries` facts and bumped the analysis
+  schema to `1.3`. Zone flows and memberships are extracted semantically from
+  existing firewall/acl/zone blocks (PAN-OS rules + `set zone`, Junos
+  `from-zone`/`to-zone`, FortiOS `srcintf`/`dstintf`) so block IDs stay stable.
+- Extended `touched_acl_firewall_rules` with optional `source_zone`,
+  `destination_zone`, `vrf`, `tenant`, and `policy` fields when vendors expose
+  them. Multi-vsys/Panorama hierarchy remains out of scope.
+- Findings (category `security_boundary`): newly permitted cross-zone flow,
+  trust boundary collapsed, and management access crosses segments at high
+  severity; zone membership changes at medium.
+- Fixtures: `testdata/panos-zones-*.cfg`, `testdata/junos-zones-*.cfg`, plus
+  matching golden summaries. Markdown/HTML reports gain a Security Boundaries
+  section and validation checklist item when boundaries are touched.

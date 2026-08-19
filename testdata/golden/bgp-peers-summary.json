@@ -11,6 +11,7 @@
   "touched_vpn": 0,
   "switching_changes": 0,
   "touched_routing_peers": 3,
+  "touched_security_boundaries": 0,
   "rollback_confidence": "risky",
   "risk_titles": [
     "BGP remote-AS changed",

@@ -424,6 +424,7 @@ func writeHTMLTouchedObjects(b *strings.Builder, a Analysis) {
 	writeObjectCard(b, "VPN", objectItems(a.TouchedVPNObjects))
 	writeObjectCard(b, "Switching / L2", switchingItems(a.SwitchingChanges))
 	writeObjectCard(b, "Routing Peers", routingPeerItems(a.TouchedRoutingPeers))
+	writeObjectCard(b, "Security Boundaries", securityBoundaryItems(a.TouchedSecurityBoundaries))
 	writeObjectCard(b, "Management", categoryItems(a.ManagementPlaneChanges))
 	writeObjectCard(b, "AAA / Auth", categoryItems(a.AAAChanges))
 	writeObjectCard(b, "Monitoring", categoryItems(a.LoggingSNMPNTPDNSChanges))
@@ -501,6 +502,9 @@ func writeHTMLValidationAndChecklist(b *strings.Builder, a Analysis) {
 	}
 	if len(a.TouchedRoutingPeers) > 0 {
 		writeValidationItem(b, "Verify BGP and OSPF neighbor state, AS/area membership, and prefix exchange for touched routing peers.")
+	}
+	if len(a.TouchedSecurityBoundaries) > 0 {
+		writeValidationItem(b, "Validate security-zone boundaries for newly permitted cross-zone flows, collapsed trust boundaries, and management access across segments.")
 	}
 	if len(a.TouchedNATObjects) > 0 {
 		writeValidationItem(b, "Validate NAT translations and session setup for affected flows.")
@@ -710,6 +714,7 @@ func touchedObjectTotal(a Analysis) int {
 		len(a.TouchedVPNObjects) +
 		len(a.SwitchingChanges) +
 		len(a.TouchedRoutingPeers) +
+		len(a.TouchedSecurityBoundaries) +
 		len(a.ManagementPlaneChanges) +
 		len(a.AAAChanges) +
 		len(a.LoggingSNMPNTPDNSChanges)
@@ -757,6 +762,9 @@ func ruleItems(items []TouchedRule) []string {
 		if item.Service != "" {
 			parts = append(parts, "service "+item.Service)
 		}
+		if item.SourceZone != "" || item.DestinationZone != "" {
+			parts = append(parts, item.SourceZone+" -> "+item.DestinationZone)
+		}
 		out = append(out, strings.Join(parts, " - "))
 	}
 	return out
@@ -789,6 +797,23 @@ func routingPeerItems(items []TouchedRoutingPeer) []string {
 			label += " area " + item.Area
 		}
 		out = append(out, label)
+	}
+	return out
+}
+
+func securityBoundaryItems(items []TouchedSecurityBoundary) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		switch item.Kind {
+		case "zone_membership":
+			out = append(out, item.Kind+" "+item.Zone+"/"+item.Member+" - "+item.ChangeType)
+		default:
+			label := item.Kind + " " + item.SourceZone + " -> " + item.DestinationZone + " - " + item.ChangeType
+			if item.Policy != "" {
+				label += " policy " + item.Policy
+			}
+			out = append(out, label)
+		}
 	}
 	return out
 }

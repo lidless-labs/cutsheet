@@ -54,10 +54,14 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - name: Build web UI
+      - name: Install and test web UI
         run: |
           cd web
           npm ci
+          npm test
+      - name: Build web UI
+        run: |
+          cd web
           npm run build
       - name: Check committed web/dist for drift
         run: git diff --exit-code web/dist

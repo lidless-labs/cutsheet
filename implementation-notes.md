@@ -674,3 +674,14 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   unit coverage. Runner: `node --experimental-strip-types --test
   "src/**/*.test.ts"` (`npm --prefix web test`). Wired into `./scripts/verify`
   and the CI `web` job so the regression is not orphaned.
+
+## 2026-08-29 - Scheduler retry test synchronization (#39)
+
+- `TestSchedulerReinvokesHandlerWhileUnprocessed` treated the first unchanged
+  call count as permanent. A scheduler tick between that sample and the next
+  poll changed the count once, leaving the test unable to recover before its
+  deadline.
+- The test now waits for a handler acknowledgment sent after `MarkProcessed`,
+  then calls `SnapshotStore.Save` with the same content and requires
+  `Changed=false`. This checks the processing cursor against HEAD directly.
+  Production scheduler behavior is unchanged.

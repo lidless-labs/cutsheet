@@ -1,12 +1,12 @@
 module github.com/lidless-labs/cutsheet
 
-go 1.25.0
+go 1.26.0
 
-toolchain go1.25.14
+toolchain go1.26.8
 
 require (
 	github.com/go-git/go-git/v5 v5.19.2
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	modernc.org/sqlite v1.52.0
 )
 

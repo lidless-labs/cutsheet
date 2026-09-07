@@ -719,3 +719,11 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   and switching detectors. Regression coverage includes positive set-style
   commands and removal forms for management, route, AAA, firewall, and VLAN
   parser paths.
+
+## 2026-09-07 - Go 1.26 security floor
+
+- Raised the supported Go floor to 1.26.0 and pinned local, CI, and Docker
+  builds to Go 1.26.8. `golang.org/x/crypto` v0.56.0 requires this floor and
+  remediates reachable SSH collector findings GO-2026-6354 and GO-2026-6355.
+- Kept the module update narrow. Only the direct x/crypto requirement changed.
+  The existing indirect module selection remained intact.

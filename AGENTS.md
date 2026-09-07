@@ -1,7 +1,7 @@
 # Cutsheet - Agent Guidance
 
 Network change intelligence platform: snapshots device configs, git-backed history,
-risk-analyzed change reports. Go 1.25+ server/library, React/TS UI in `web/`.
+risk-analyzed change reports. Go 1.26+ server/library, React/TS UI in `web/`.
 Design: `docs/superpowers/specs/2026-06-09-cutsheet-design.md`. Decisions log:
 `implementation-notes.md`; update it as you work (SOP).
 

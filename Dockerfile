@@ -11,7 +11,7 @@ RUN npm run build
 # (see .dockerignore), so the version arrives as a build arg: `make
 # docker-build` passes `git describe --tags --always`, and the compose file
 # forwards $VERSION from the host environment when set.
-FROM golang:1.25-alpine AS build
+FROM golang:1.26.8-alpine AS build
 ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./

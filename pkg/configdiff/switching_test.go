@@ -79,3 +79,24 @@ func TestSwitchingDetectorsAreSpecific(t *testing.T) {
 		t.Error("portfast on an access port should not be flagged")
 	}
 }
+
+func TestSpanningTreeEnabledDetectorsRejectNegatedCommands(t *testing.T) {
+	if bpduProtectionReducedOrPortfastTrunk(nil, []string{"switchport mode trunk", "no spanning-tree portfast"}) {
+		t.Fatal("negated PortFast on a trunk must not be treated as PortFast enabled")
+	}
+	if anyLine([]string{"no spanning-tree bpduguard enable"}, isBpduGuardEnableLine) {
+		t.Fatal("negated BPDU guard must not be treated as BPDU guard enabled")
+	}
+	if isPortfastLine("no spanning-tree portfast") || isBpduGuardLine("no spanning-tree bpduguard enable") || isStpGuardLine("no spanning-tree guard root") {
+		t.Fatal("negated spanning-tree commands must not be enabled-state facts")
+	}
+	changes := switchingChanges([]BlockChange{{
+		ID:          "interface:GigabitEthernet1/0/1",
+		ChangeType:  "changed",
+		BeforeLines: []string{"spanning-tree portfast"},
+		AfterLines:  []string{"no spanning-tree portfast"},
+	}})
+	if len(changes) != 1 || changes[0].After != "no spanning-tree portfast" {
+		t.Fatalf("negated PortFast removal must remain tracked: %#v", changes)
+	}
+}

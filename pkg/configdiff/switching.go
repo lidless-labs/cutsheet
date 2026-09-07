@@ -37,7 +37,7 @@ func switchingChanges(changes []BlockChange) []SwitchingChange {
 		if b, a := firstMatch(before, isNativeVlanLine), firstMatch(after, isNativeVlanLine); b != a && (b != "" || a != "") {
 			add(SwitchingChange{Category: "native_vlan", Subject: subject, ChangeType: change.ChangeType, Before: b, After: a, Evidence: nonEmptyLines(b, a)})
 		}
-		for _, feature := range []func(string) bool{isPortfastLine, isBpduGuardLine, isStpGuardLine} {
+		for _, feature := range []func(string) bool{isPortfastCommandLine, isBpduGuardCommandLine, isStpGuardCommandLine} {
 			b, a := firstMatch(before, feature), firstMatch(after, feature)
 			if b != a && (b != "" || a != "") {
 				add(SwitchingChange{Category: "spanning_tree", Subject: subject, ChangeType: change.ChangeType, Before: b, After: a, Evidence: nonEmptyLines(b, a)})
@@ -175,7 +175,7 @@ func appendSwitchingFindings(add func(severity, category, title, recommendation 
 func trunkCarriesAllVLANs(before, after []string) bool {
 	b := strings.ToLower(firstMatch(before, isTrunkAllowedLine))
 	a := strings.ToLower(firstMatch(after, isTrunkAllowedLine))
-	return strings.Contains(a, "allowed vlan all") && !strings.Contains(b, "allowed vlan all")
+	return !isNegatedCommand(a) && strings.Contains(a, "allowed vlan all") && !strings.Contains(b, "allowed vlan all")
 }
 
 func bpduProtectionReducedOrPortfastTrunk(before, after []string) bool {
@@ -192,8 +192,8 @@ func bpduProtectionReducedOrPortfastTrunk(before, after []string) bool {
 
 func portfastBpduDetails(before, after []string) []string {
 	details := []string{}
-	details = append(details, beforeAfterDetails("PortFast", before, after, isPortfastLine)...)
-	details = append(details, beforeAfterDetails("BPDU guard", before, after, isBpduGuardLine)...)
+	details = append(details, beforeAfterDetails("PortFast", before, after, isPortfastCommandLine)...)
+	details = append(details, beforeAfterDetails("BPDU guard", before, after, isBpduGuardCommandLine)...)
 	if len(details) == 0 {
 		details = append(details, "Spanning-tree edge protection changed on this interface.")
 	}
@@ -249,20 +249,31 @@ func isStormControlLine(line string) bool {
 }
 
 func isPortfastLine(line string) bool {
-	return strings.Contains(strings.ToLower(line), "spanning-tree portfast")
+	return !isNegatedCommand(line) && isPortfastCommandLine(line)
 }
 
 func isBpduGuardLine(line string) bool {
-	return strings.Contains(strings.ToLower(line), "spanning-tree bpduguard")
+	return !isNegatedCommand(line) && isBpduGuardCommandLine(line)
 }
 
 func isBpduGuardEnableLine(line string) bool {
-	return strings.Contains(strings.ToLower(line), "spanning-tree bpduguard enable")
+	return !isNegatedCommand(line) && strings.Contains(strings.ToLower(line), "spanning-tree bpduguard enable")
 }
 
 func isStpGuardLine(line string) bool {
-	lower := strings.ToLower(line)
-	return strings.Contains(lower, "spanning-tree guard ")
+	return !isNegatedCommand(line) && isStpGuardCommandLine(line)
+}
+
+func isPortfastCommandLine(line string) bool {
+	return strings.Contains(strings.ToLower(line), "spanning-tree portfast")
+}
+
+func isBpduGuardCommandLine(line string) bool {
+	return strings.Contains(strings.ToLower(line), "spanning-tree bpduguard")
+}
+
+func isStpGuardCommandLine(line string) bool {
+	return strings.Contains(strings.ToLower(line), "spanning-tree guard ")
 }
 
 func isStpModeLine(line string) bool {

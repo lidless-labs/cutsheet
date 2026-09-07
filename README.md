@@ -21,7 +21,7 @@
 
 <p align="center">
   <img src="https://shieldcn.dev/github/ci/lidless-labs/cutsheet.svg?workflow=ci.yml&branch=main&label=ci&size=xs" alt="CI status">
-  <img src="https://shieldcn.dev/badge/go-1.25%2B-00ADD8.svg?size=xs&logo=go&logoColor=white" alt="Go 1.25+">
+  <img src="https://shieldcn.dev/badge/go-1.26%2B-00ADD8.svg?size=xs&logo=go&logoColor=white" alt="Go 1.26+">
   <img src="https://shieldcn.dev/badge/license-MIT-blue.svg?size=xs" alt="MIT license">
 </p>
 

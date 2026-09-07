@@ -697,3 +697,25 @@ Running log of decisions, deviations, and tradeoffs not captured in the spec
   findings, comparisons, and evidence are sorted before marshaling to preserve
   stable JSON bytes for identical inputs. Policy values are normalized before
   deduplication, so casing and whitespace variants produce one finding.
+
+## 2026-08-29 - Scheduler retry test synchronization (#39)
+
+- `TestSchedulerReinvokesHandlerWhileUnprocessed` treated the first unchanged
+  call count as permanent. A scheduler tick between that sample and the next
+  poll changed the count once, leaving the test unable to recover before its
+  deadline.
+- The test now waits for a handler acknowledgment sent after `MarkProcessed`,
+  then calls `SnapshotStore.Save` with the same content and requires
+  `Changed=false`. This checks the processing cursor against HEAD directly.
+  Production scheduler behavior is unchanged.
+
+## 2026-09-07 - Set-style removal policy facts (#38)
+
+- Policy fact extraction treats a leading `delete ` command as a removal, matching
+  the established `no ` behavior. EdgeOS, Junos, and PAN-OS parsers retain
+  set-style delete statements so treating them as enabled facts produced false
+  forbidden findings and hid missing required facts.
+- The shared removal predicate continues to feed the management, ACL broadening,
+  and switching detectors. Regression coverage includes positive set-style
+  commands and removal forms for management, route, AAA, firewall, and VLAN
+  parser paths.

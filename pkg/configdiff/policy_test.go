@@ -35,6 +35,124 @@ func TestEvaluatePolicyCiscoNegatedHTTPIsAbsent(t *testing.T) {
 	}
 }
 
+func TestEvaluatePolicySetStyleDeleteCommandsAreAbsent(t *testing.T) {
+	tests := []struct {
+		name    string
+		vendor  string
+		facts   func(*PolicyFacts) *[]string
+		value   string
+		present string
+		removed string
+	}{
+		{
+			name:    "edgeos management service",
+			vendor:  "edgeos",
+			facts:   func(f *PolicyFacts) *[]string { return &f.ManagementServices },
+			value:   "ssh",
+			present: "set service ssh port 22",
+			removed: "delete service ssh port 22",
+		},
+		{
+			name:    "junos management service",
+			vendor:  "junos",
+			facts:   func(f *PolicyFacts) *[]string { return &f.ManagementServices },
+			value:   "ssh",
+			present: "set system services ssh",
+			removed: "delete system services ssh",
+		},
+		{
+			name:    "panos management service",
+			vendor:  "panos",
+			facts:   func(f *PolicyFacts) *[]string { return &f.ManagementServices },
+			value:   "ssh",
+			present: "set deviceconfig system ssh",
+			removed: "delete deviceconfig system ssh",
+		},
+		{
+			name:    "edgeos route",
+			vendor:  "edgeos",
+			facts:   func(f *PolicyFacts) *[]string { return &f.Routes },
+			value:   "198.51.100.0/24",
+			present: "set protocols static route 198.51.100.0/24 next-hop 203.0.113.1",
+			removed: "delete protocols static route 198.51.100.0/24 next-hop 203.0.113.1",
+		},
+		{
+			name:    "edgeos aaa",
+			vendor:  "edgeos",
+			facts:   func(f *PolicyFacts) *[]string { return &f.AAA },
+			value:   "set system login user admin authentication plaintext-password x",
+			present: "set system login user admin authentication plaintext-password x",
+			removed: "delete system login user admin authentication plaintext-password x",
+		},
+		{
+			name:    "edgeos firewall property",
+			vendor:  "edgeos",
+			facts:   func(f *PolicyFacts) *[]string { return &f.FirewallProperties },
+			value:   "action accept",
+			present: "set firewall name WAN_IN rule 10 action accept",
+			removed: "delete firewall name WAN_IN rule 10 action accept",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, scenario := range []struct {
+				name        string
+				content     string
+				expectation string
+				findings    int
+				status      string
+			}{
+				{"required present", tt.present, "required", 0, ""},
+				{"required removed", tt.removed, "required", 1, "missing"},
+				{"forbidden present", tt.present, "forbidden", 1, "present"},
+				{"forbidden removed", tt.removed, "forbidden", 0, ""},
+			} {
+				t.Run(scenario.name, func(t *testing.T) {
+					policy := DesiredStatePolicy{Version: "2026.08"}
+					facts := &policy.Required
+					if scenario.expectation == "forbidden" {
+						facts = &policy.Forbidden
+					}
+					*tt.facts(facts) = []string{tt.value}
+
+					result, err := EvaluatePolicy(policy, PolicyEvaluationInput{
+						CurrentContent: scenario.content,
+						Vendor:         tt.vendor,
+					})
+					if err != nil {
+						t.Fatalf("evaluate policy: %v", err)
+					}
+					if got := len(result.Current.Findings); got != scenario.findings {
+						t.Fatalf("findings = %#v, want %d", result.Current.Findings, scenario.findings)
+					}
+					if scenario.status != "" && result.Current.Findings[0].Status != scenario.status {
+						t.Fatalf("finding status = %q, want %q", result.Current.Findings[0].Status, scenario.status)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestIsNegatedCommandRecognizesSetStyleDeleteCommands(t *testing.T) {
+	for _, line := range []string{
+		"delete interfaces ethernet eth1 vif 20",
+		"delete protocols static route 198.51.100.0/24 next-hop 203.0.113.1",
+		"delete system login user admin authentication plaintext-password x",
+		"delete firewall name WAN_IN rule 10 action accept",
+		"delete vlans USERS vlan-id 20",
+		"delete deviceconfig system ssh",
+	} {
+		if !isNegatedCommand(line) {
+			t.Errorf("set-style removal %q was not negated", line)
+		}
+	}
+	if isNegatedCommand("set service ssh port 22") {
+		t.Fatal("set-style configuration must not be negated")
+	}
+}
+
 func TestIsManagementLineRejectsNegatedCommands(t *testing.T) {
 	if isManagementLine("no ip http server") {
 		t.Fatal("negated HTTP command must not be classified as an enabled management service")

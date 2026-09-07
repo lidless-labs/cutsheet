@@ -216,7 +216,8 @@ func extractPolicyFacts(parsed parsedConfig) policyInventory {
 }
 
 func isNegatedCommand(line string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), "no ")
+	command := strings.ToLower(strings.TrimSpace(line))
+	return strings.HasPrefix(command, "no ") || strings.HasPrefix(command, "delete ")
 }
 
 func managementServices(line string) []string {

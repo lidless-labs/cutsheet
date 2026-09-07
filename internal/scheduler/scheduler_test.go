@@ -302,6 +302,7 @@ func TestSchedulerReinvokesHandlerWhileUnprocessed(t *testing.T) {
 	var mu sync.Mutex
 	var calls []snapshots.SaveResult
 	process := true
+	processed := make(chan string, 1)
 	handler := func(ctx context.Context, device store.Device, result snapshots.SaveResult) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -312,6 +313,7 @@ func TestSchedulerReinvokesHandlerWhileUnprocessed(t *testing.T) {
 		if err := snaps.MarkProcessed(device.ID, result.CommitHash); err != nil {
 			t.Errorf("MarkProcessed: %v", err)
 		}
+		processed <- result.CommitHash
 	}
 
 	sched := New(lister, snaps, handler, Options{
@@ -331,6 +333,11 @@ func TestSchedulerReinvokesHandlerWhileUnprocessed(t *testing.T) {
 		n := len(calls)
 		mu.Unlock()
 		t.Fatalf("initial change: handler fired %d times, want 1", n)
+	}
+	select {
+	case <-processed:
+	case <-time.After(3 * time.Second):
+		t.Fatal("initial change was not marked processed")
 	}
 
 	mu.Lock()
@@ -363,19 +370,20 @@ func TestSchedulerReinvokesHandlerWhileUnprocessed(t *testing.T) {
 	mu.Lock()
 	process = true
 	mu.Unlock()
-	stableAt := 0
-	if !waitFor(t, 3*time.Second, func() bool {
-		mu.Lock()
-		defer mu.Unlock()
-		if len(calls) < 3 {
-			return false
+	select {
+	case got := <-processed:
+		if got != second.CommitHash {
+			t.Fatalf("processed CommitHash = %q, want %q", got, second.CommitHash)
 		}
-		if stableAt == 0 {
-			stableAt = len(calls)
-			return false
-		}
-		return len(calls) == stableAt
-	}) {
-		t.Fatal("handler kept firing after successful processing")
+	case <-time.After(3 * time.Second):
+		t.Fatal("retry was not marked processed")
+	}
+
+	result, err := snaps.Save("gw1", after)
+	if err != nil {
+		t.Fatalf("Save after MarkProcessed: %v", err)
+	}
+	if result.Changed {
+		t.Fatal("processing cursor remained behind HEAD after MarkProcessed")
 	}
 }
